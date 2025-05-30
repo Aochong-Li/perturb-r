@@ -1,0 +1,6 @@
+source:
+  - name: "MATH" # Hendrycks Math, 7B already achieves ~75% accuracy
+    path: "/share/goyal/lio/reasoning/data/hendrycks_math/dataset"
+
+  - name: "OpenR1"
+    path: "open-r1/OpenR1-Math-220k"
