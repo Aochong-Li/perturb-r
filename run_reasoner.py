@@ -2,7 +2,7 @@ import os
 import pandas as pd
 import sys
 sys.path.append("/home/al2644/research")
-from codebase.reasoning.llm_engine import *
+from llm_engine import *
 import argparse
 from datasets import load_dataset, load_from_disk
 from reward_score.math import compute_score

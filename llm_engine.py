@@ -223,7 +223,7 @@ if __name__ == '__main__':
     # Fix: Use a local path with repo_type="local" for local model loading
     step = 4890
     config = ModelConfig(
-        model_name=f"/home/al2644/research/codebase/reasoning/rlvr/sft/LLaMA-Factory/outputs/llamafactory-sft/Qwen2.5-Math-1.5B-DeepMath-Hard-SFT/checkpoint-{step}",
+        model_name="sail/Qwen2.5-Math-1.5B-Oat-Zero",
         tokenizer_name="Qwen/Qwen2.5-Math-1.5B",
         tensor_parallel_size=2,
         gpu_memory_utilization=0.6,

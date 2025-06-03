@@ -2,7 +2,7 @@ import os
 import pandas as pd
 import sys
 sys.path.append("/home/al2644/research")
-from codebase.reasoning.llm_engine import *
+from llm_engine import *
 import argparse
 from reward_score.math import compute_score, last_boxed_only_string, remove_boxed
 import random
@@ -16,7 +16,7 @@ class Reasoner_QDistractRA(OpenLMEngine):  # Fixed typo in class name
                  nick_name: str,
                  tokenizer_name: str,
                  dataset_path: str = None,
-                 granularity: int = 35,
+                 granularity: int = 20,
                  num_distract_candidates: int = 5,
                  output_dir: str = '/share/goyal/lio/reasoning/eval/',
                  tensor_parallel_size: int = 2,
@@ -155,13 +155,14 @@ class Reasoner_QDistractRA(OpenLMEngine):  # Fixed typo in class name
         
         selected_chunks = chunks[:num_chunks]
         distract_reasoning = '\n\n'.join(selected_chunks)
+        distract_reasoning += " Wait. "
 
         return distract_reasoning, actual_fraction
 
     def distract(self):
         """Distract the dataset by adding distractor reasoning to problems."""
         # Define percentiles to test
-        pct_df = pd.DataFrame({"percentile": [0.1, 0.25, 0.5, 0.75, 1.0]})
+        pct_df = pd.DataFrame({"percentile": [0.15, 0.25, 0.5, 0.75, 0.9]})
         # Use cross merge to create combinations of problems and percentiles
         self.df = self.df.merge(pct_df, how='cross')
         

@@ -1,9 +1,9 @@
 set -ex
 
+export CUDA_VISIBLE_DEVICES=0,1,2,3
 MODELS_YAML="config/market_models.yaml"
-EVAL_DIR="./results/hendrycks_math/sample200/reasoning"
+EVAL_DIR="./results/hendrycks_math/sample200"
 OUTPUT_DIR="$EVAL_DIR/distraction"
-MAX_TOKENS=16384
 
 MODELS_INFO=$(python -c "
 import yaml
@@ -31,20 +31,28 @@ echo "$MODELS_INFO" | while IFS=, read -r model_name nick_name; do
     echo "  Output Directory: ${OUTPUT_DIR}"
     echo "-------------------------------------"
 
+    # Check if this is a DeepMath model and adjust max_tokens
+    if [[ "$nick_name_lower" == *"deepmath"* ]]; then
+        MAX_TOKENS=4096
+        echo "  DeepMath model detected: Setting max_tokens to ${MAX_TOKENS}"
+    else
+        MAX_TOKENS=16384
+    fi
+    
     python distract_thinking.py \
         --model_name "${model_name}" \
         --nick_name "${nick_name}" \
         --tokenizer_name "${model_name}" \
         --dataset_path "${DATASET_PATH}" \
         --output_dir "${OUTPUT_DIR}" \
-        --tensor_parallel_size 2 \
-        --gpu_memory_utilization 0.9 \
+        --tensor_parallel_size 1 \
+        --gpu_memory_utilization 0.85 \
         --dtype bfloat16 \
         --max_tokens $MAX_TOKENS \
         --temperature 0.6 \
         --top_p 0.9 \
         --top_k 32 \
-        --num_distract_candidates 5 \
-        --granularity 35
+        --num_distract_candidates 10 \
+        --granularity 20
 
 done 
