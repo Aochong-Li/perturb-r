@@ -115,7 +115,7 @@ class Reasoner_QDistractRA(OpenLMEngine):  # Fixed typo in class name
             # Sample rows to use as distractors
             self.df['think_chunks'] = self.df['original_response'].apply(self.chunking)
             self.distract_candidates = self.df[self.df['think_chunks'].str.len().between(15,20)]
-            self.distract_candidates = self.df.sample(n=num_distract_candidates, random_state=42)
+            self.distract_candidates = self.df.sample(n=num_distract_candidates, random_state=45)
             self.distract_candidates = self.distract_candidates[['problem', 'solution', 'think_chunks']] \
                                                 .rename(columns={
                                                     'problem': 'problem_distractor',

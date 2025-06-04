@@ -20,7 +20,7 @@ def compute_score(solution_str, ground_truth) -> float:
     
     gold = parse(solution_str)
     answer = parse(ground_truth)
-    math_verify_result = verify(gold, answer)
+    math_verify_result = 1. if verify(gold, answer) else 0.
 
     return math_result or math_verify_result
 

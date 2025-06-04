@@ -17,7 +17,7 @@ class Reasoner_QRA(OpenLMEngine):
                  subset_name: str = None,
                  split_name: str = 'test',
                  sample_size: int = None,
-                 output_dir: str = '/share/goyal/lio/reasoning/eval/',
+                 output_dir: str = './results/hendrycks_math/sample200',
                  tensor_parallel_size: int = 1,
                  gpu_memory_utilization: float = 0.85,
                  dtype: str = "bfloat16",
@@ -84,7 +84,7 @@ class Reasoner_QRA(OpenLMEngine):
             except Exception as e:
                 raise RuntimeError(f"Failed to load dataset from Hugging Face: {e}")
         if sample_size:
-            self.df = pd.DataFrame(dataset).sample(n=sample_size, random_state=42).reset_index(drop = True)
+            self.df = pd.DataFrame(dataset).sample(n=sample_size, random_state=45).reset_index(drop = True)
         else:
             self.df = pd.DataFrame(dataset)
 

@@ -48,6 +48,15 @@ models:
   # - model_name: "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B"
   #   nick_name: "R1-Distill-Qwen-7B"
 
-  - model_name: "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B"
-    nick_name: "R1-Distill-Qwen-14B"
+  # - model_name: "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B"
+  #   nick_name: "R1-Distill-Qwen-14B"
+
+  - model_name: "Qwen/QwQ-32B"
+    nick_name: "QwQ-32B"
+  
+  - model_name: "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B"
+    nick_name: "Qwen-R1-Distill-32B"
+
+
+
   

@@ -27,12 +27,12 @@ echo "$MODELS_INFO" | while IFS=, read -r model_name nick_name; do
     --split_name "test" \
     --sample_size $SAMPLE_SIZE \
     --output_dir $OUTPUT_DIR \
-    --tensor_parallel_size 1 \
+    --tensor_parallel_size 4 \
     --gpu_memory_utilization 0.85 \
     --dtype bfloat16 \
     --max_tokens 16384 \
     --temperature 0.6 \
-    --top_p 0.9 \
-    --top_k 32
+    --top_p 1.0 \
+    --top_k -1
 
 done 
