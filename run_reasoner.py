@@ -17,7 +17,7 @@ class Reasoner_QRA(OpenLMEngine):
                  subset_name: str = None,
                  split_name: str = 'test',
                  sample_size: int = None,
-                 output_dir: str = './results/hendrycks_math/sample200',
+                 output_dir: str = './results/hendrycks_math/sample200/reasoning',
                  tensor_parallel_size: int = 1,
                  gpu_memory_utilization: float = 0.85,
                  dtype: str = "bfloat16",

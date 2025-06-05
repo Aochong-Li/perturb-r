@@ -221,17 +221,16 @@ class OpenLMEngine:
 
 if __name__ == '__main__':
     # Fix: Use a local path with repo_type="local" for local model loading
-    step = 4890
     config = ModelConfig(
-        model_name="sail/Qwen2.5-Math-1.5B-Oat-Zero",
-        tokenizer_name="Qwen/Qwen2.5-Math-1.5B",
+        model_name="deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B",
+        tokenizer_name="deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B",
         tensor_parallel_size=2,
         gpu_memory_utilization=0.6,
         dtype="bfloat16",
-        max_tokens=4096,
+        max_tokens=16384,
         temperature=0.6,
         top_p=1.0,
-        top_k=32
+        top_k=-1
     )
     engine_qwen = OpenLMEngine(config)
     # prompts = ['<|im_start|>system\nPlease reason step by step, and  put your final answer within \\boxed{}<|im_end|>\n<|im_start|>user\nThe decimal expansion of $8/11$ is a repeating decimal. What is the least number of digits in a repeating block of 8/11?<|im_end|>\n<|im_start|>assistant\n<think>']

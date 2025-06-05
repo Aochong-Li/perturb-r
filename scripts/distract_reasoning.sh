@@ -3,7 +3,7 @@ set -ex
 export CUDA_VISIBLE_DEVICES=0,1,2,3
 MODELS_YAML="config/market_models.yaml"
 EVAL_DIR="./results/hendrycks_math/sample200"
-OUTPUT_DIR="$EVAL_DIR/distraction"
+OUTPUT_DIR="$EVAL_DIR/distract_thinking"
 
 MODELS_INFO=$(python -c "
 import yaml
@@ -15,15 +15,7 @@ for model in data['models']:
 
 # Loop through each model
 echo "$MODELS_INFO" | while IFS=, read -r model_name nick_name; do
-    nick_name_lower="${nick_name,,}"
-    
-    # Handle base models by removing "-Base" suffix for dataset path
-    if [[ "$nick_name_lower" == *"-base" ]]; then
-        instruct_name="${nick_name%-Base}"
-        DATASET_PATH="$EVAL_DIR/reasoning/${instruct_name}_correct.pickle"
-    else
-        DATASET_PATH="$EVAL_DIR/reasoning/${nick_name}_correct.pickle"
-    fi
+    DATASET_PATH="$EVAL_DIR/reasoning/${nick_name}_correct.pickle"
 
     echo "Running Distraction Experiment:"
     echo "  Model: ${model_name}, ${nick_name}"
@@ -45,14 +37,17 @@ echo "$MODELS_INFO" | while IFS=, read -r model_name nick_name; do
         --tokenizer_name "${model_name}" \
         --dataset_path "${DATASET_PATH}" \
         --output_dir "${OUTPUT_DIR}" \
-        --tensor_parallel_size 1 \
+        --tensor_parallel_size 4 \
         --gpu_memory_utilization 0.85 \
         --dtype bfloat16 \
         --max_tokens $MAX_TOKENS \
         --temperature 0.6 \
-        --top_p 0.9 \
-        --top_k 32 \
+        --top_p 1.0 \
+        --top_k -1 \
         --num_distract_candidates 10 \
         --granularity 20
 
 done 
+
+
+python distract_thinking.py --model_name deepseek-ai/DeepSeek-R1-Distill-Qwen-32B --nick_name Qwen-R1-Distill-32B --tokenizer_name deepseek-ai/DeepSeek-R1-Distill-Qwen-32B --dataset_path ./results/hendrycks_math/sample200/reasoning/Qwen-R1-Distill-32B_correct.pickle --output_dir ./results/hendrycks_math/sample200/distract_thinking --tensor_parallel_size 2 --gpu_memory_utilization 0.85 --dtype bfloat16 --max_tokens 16384 --temperature 0.6 --top_p 0.9 --top_k 32 --num_distract_candidates 10 --granularity 20

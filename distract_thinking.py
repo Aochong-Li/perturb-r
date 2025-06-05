@@ -18,7 +18,7 @@ class Reasoner_QDistractRA(OpenLMEngine):  # Fixed typo in class name
                  dataset_path: str = None,
                  granularity: int = 20,
                  num_distract_candidates: int = 5,
-                 output_dir: str = '/share/goyal/lio/reasoning/eval/',
+                 output_dir: str = './results/hendrycks_math/sample200/distract_thinking',
                  tensor_parallel_size: int = 2,
                  gpu_memory_utilization: float = 0.85,
                  dtype: str = "bfloat16",
@@ -114,7 +114,7 @@ class Reasoner_QDistractRA(OpenLMEngine):  # Fixed typo in class name
 
             # Sample rows to use as distractors
             self.df['think_chunks'] = self.df['original_response'].apply(self.chunking)
-            self.distract_candidates = self.df[self.df['think_chunks'].str.len().between(15,20)]
+            self.distract_candidates = self.df[self.df['think_chunks'].str.len().between(30,45)]
             self.distract_candidates = self.df.sample(n=num_distract_candidates, random_state=45)
             self.distract_candidates = self.distract_candidates[['problem', 'solution', 'think_chunks']] \
                                                 .rename(columns={
@@ -151,25 +151,24 @@ class Reasoner_QDistractRA(OpenLMEngine):  # Fixed typo in class name
         # Sample a distractor candidate        
         chunks = row['distract_reasoning']
         num_chunks = max(1, int(len(chunks) * percentile))
-        actual_fraction = num_chunks / len(chunks)
         
         selected_chunks = chunks[:num_chunks]
         distract_reasoning = '\n\n'.join(selected_chunks)
-        distract_reasoning += " Wait. "
-
-        return distract_reasoning, actual_fraction
+        num_distract_tokens = len(self.tokenizer.encode(distract_reasoning))
+        
+        return distract_reasoning, num_distract_tokens
 
     def distract(self):
         """Distract the dataset by adding distractor reasoning to problems."""
         # Define percentiles to test
-        pct_df = pd.DataFrame({"percentile": [0.15, 0.25, 0.5, 0.75, 0.9]})
+        pct_df = pd.DataFrame({"percentile": [0.10, 0.25, 0.5, 0.75, 0.9]})
         # Use cross merge to create combinations of problems and percentiles
         self.df = self.df.merge(pct_df, how='cross')
         
         # Apply distraction
         results = self.df.apply(self.generate_distract_reasoning, axis=1)
         self.df['distract_reasoning'] = [r[0] for r in results]
-        self.df['actual_fraction'] = [r[1] for r in results]
+        self.df['num_distract_tokens'] = [r[1] for r in results]
 
         self.df = self.df.drop(columns=['percentile']).drop_duplicates()
     
@@ -252,9 +251,9 @@ if __name__=="__main__":
                         help="Top-k sampling parameter")
     parser.add_argument("--num_distract_candidates", type=int, default=5,
                         help="Number of problems to use as distractors")
-    parser.add_argument("--granularity", type=int, default=35,
+    parser.add_argument("--granularity", type=int, default=20,
                         help="Granularity of the thinking chunks")
-
+    
     args = parser.parse_args()
     engine = Reasoner_QDistractRA(
         **vars(args),
