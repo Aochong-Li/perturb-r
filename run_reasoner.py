@@ -7,6 +7,7 @@ import argparse
 from datasets import load_dataset, load_from_disk
 from reward_score.math import compute_score
 import pdb
+import numpy as np
 
 class Reasoner_QRA(OpenLMEngine):
     def __init__(self,
@@ -24,8 +25,10 @@ class Reasoner_QRA(OpenLMEngine):
                  max_tokens: int = 16384,
                  temperature: float = 0.6,
                  top_p: float = 1.0,
-                 top_k: int = 0
+                 top_k: int = 0,
+                 pass_at_k: int = 1,
                  ):
+
         # Initialize attributes first
         self.nick_name = nick_name
         self.output_dir = output_dir
@@ -36,10 +39,10 @@ class Reasoner_QRA(OpenLMEngine):
         self.temperature = temperature
         self.top_p = top_p
         self.top_k = top_k
-        
+        self.pass_at_k = pass_at_k
+
         # Create output directory if it doesn't exist
         os.makedirs(self.output_dir, exist_ok=True)
-        
         # Load dataset
         self.load_dataset(
             dataset_name_or_path,
@@ -64,7 +67,7 @@ class Reasoner_QRA(OpenLMEngine):
         # Initialize parent class
         super().__init__(config=config)
 
-        print(f"Start evaluating {self.nick_name} on dataset: {dataset_name_or_path} | subset: {subset_name} | split: {split_name}")
+        print(f"Start evaluating {self.nick_name} on dataset: {dataset_name_or_path} | subset: {subset_name} | split: {split_name} | pass@{self.pass_at_k}")
 
     def load_dataset(self, dataset_name: str, subset_name: str, split_name: str, sample_size: int) -> None:
         """Load dataset from HuggingFace or local disk.
@@ -113,10 +116,11 @@ class Reasoner_QRA(OpenLMEngine):
         """
         try:
             # Apply chat template to problems
-            self.df['problem'] = self.df['problem'].apply(self.apply_chat_template)
-            
+            self.df = self.df.loc[np.repeat(self.df.index, self.pass_at_k)].reset_index(drop=True)
+            prompts = self.df['problem'].apply(self.apply_chat_template)
+
             # Generate model responses
-            self.response = self.generate(prompts=self.df['problem'])
+            self.response = self.generate(prompts=prompts)
             
             # Compute correctness scores
             correctness = []
@@ -140,9 +144,10 @@ class Reasoner_QRA(OpenLMEngine):
             self.df.to_pickle(output_path)
 
             # Save the subset of df where correct == 1.0
-            correct_output_path = output_path.replace(self.nick_name, self.nick_name + "_correct")
-            self.df[self.df['correct'] == 1.0].reset_index(drop=True).to_pickle(correct_output_path)
-            
+            if self.pass_at_k == 1:
+                correct_output_path = output_path.replace(self.nick_name, self.nick_name + "_correct")
+                self.df[self.df['correct'] == 1.0].reset_index(drop=True).to_pickle(correct_output_path)
+                
             # Log summary statistics
             accuracy = sum(correctness) / len(correctness)
             print(f"Evaluation complete. Accuracy: {accuracy:.2%}")
@@ -177,11 +182,11 @@ if __name__=="__main__":
                         help="Nucleus sampling parameter")
     parser.add_argument("--top_k", type=int, default=0,
                         help="Top-k sampling parameter")
-    args = parser.parse_args()
+    parser.add_argument("--pass_at_k", type=int, default=1,
+                        help="Pass@k parameter")
 
-    
+    args = parser.parse_args()
     engine = Reasoner_QRA(
         **vars(args),
     )
-
     engine.eval()

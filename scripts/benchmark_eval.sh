@@ -1,11 +1,13 @@
 #!/bin/bash
-export CUDA_VISIBLE_DEVICES=0,1,2,3
+set -ex
+export CUDA_VISIBLE_DEVICES=0,1
 
 # Path to the models YAML file
 MODELS_YAML="config/market_models.yaml"
-DATASET_PATH="./data/hendrycks_math/"
-OUTPUT_DIR="./results/hendrycks_math/sample200/reasoning"
-SAMPLE_SIZE=200
+DATASET_PATH="HuggingFaceH4/MATH-500"
+OUTPUT_DIR="./results/math-500/reasoning"
+PASS_AT_K=6
+
 # Use Python to extract model information from YAML
 MODELS_INFO=$(python -c "
 import yaml
@@ -25,14 +27,14 @@ echo "$MODELS_INFO" | while IFS=, read -r model_name nick_name; do
     --tokenizer_name "$model_name" \
     --dataset_name_or_path $DATASET_PATH \
     --split_name "test" \
-    --sample_size $SAMPLE_SIZE \
     --output_dir $OUTPUT_DIR \
-    --tensor_parallel_size 4 \
+    --tensor_parallel_size 1 \
     --gpu_memory_utilization 0.85 \
     --dtype bfloat16 \
     --max_tokens 16384 \
     --temperature 0.6 \
     --top_p 1.0 \
-    --top_k -1
+    --top_k -1 \
+    --pass_at_k $PASS_AT_K
 
 done 

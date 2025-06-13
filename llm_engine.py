@@ -222,8 +222,8 @@ class OpenLMEngine:
 if __name__ == '__main__':
     # Fix: Use a local path with repo_type="local" for local model loading
     config = ModelConfig(
-        model_name="deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B",
-        tokenizer_name="deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B",
+        model_name="deepseek-ai/DeepSeek-R1-Distill-Qwen-14B",
+        tokenizer_name="deepseek-ai/DeepSeek-R1-Distill-Qwen-14B",
         tensor_parallel_size=2,
         gpu_memory_utilization=0.6,
         dtype="bfloat16",

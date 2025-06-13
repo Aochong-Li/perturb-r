@@ -102,7 +102,14 @@ class Reasoner_QDigitCorruptRA(OpenLMEngine):
 
     def modify(self, original_digit) -> None:
         """Modify the located numerical values."""
-        return str(int(original_digit) + 1)
+        original_digit = int(original_digit)
+        replace_digit = original_digit + 1 if random.random() < 0.5 else original_digit - 1
+        if replace_digit == -1:
+            replace_digit = 9
+        elif replace_digit == 10:
+            replace_digit = 0
+        
+        return str(replace_digit)
 
     def corrupt_answer_digit(self) -> None:
         """Replace the original values with corrupted ones."""
@@ -120,39 +127,37 @@ class Reasoner_QDigitCorruptRA(OpenLMEngine):
             - 0.0 < percentile < 1.0: replace floor(percentile * total) occurrences, counting from the end;
             if that computes to 0, we still replace 1 occurrence.
             """
+            # Case 0: no original digit
             total = string.count(original)
             if total == 0:
-                return string, 0.0
+                return None, None
 
             # Case 1: replace everything
             if percentile >= 1.0:
                 new_string = corrupted.join(string.split(original))
-                return new_string, 1.0
+                return new_string, total
 
             # Case 2: replace only the last one
             if percentile <= 0.0:
                 parts = string.rsplit(original, 1)
                 new_string = corrupted.join(parts)
-                return new_string, 1.0 / total
+                return new_string, 1
 
             # Case 3: intermediate percentile
             # → how many to replace (floor), but at least 1
-            num_to_replace = int(percentile * total)
-            if num_to_replace == 0:
-                num_to_replace = 1
-
+            num_to_replace = max(1, int(percentile * total))
+            
             # split from the right that many times, then join with `corrupted`
             parts = string.rsplit(original, num_to_replace)
             new_string = corrupted.join(parts)
-            actual_fraction = num_to_replace / total
-            return new_string, actual_fraction
+            return new_string, num_to_replace
         
-        pct_df = pd.DataFrame({"percentile": [0.0, 0.15, 0.25, 0.35, 0.5, 0.75, 1.0]})
+        pct_df = pd.DataFrame({"percentile": [0.15, 0.25, 0.35, 0.5, 0.75, 0.9, 1.0]})
         self.df = self.df.merge(pct_df, how='cross')
-        self.df['corrupt_reasoning'], self.df['percentile'] = zip(*self.df.apply(corrupt_digit, axis = 1))
-        self.df = self.df.drop_duplicates(ignore_index=True)
+        self.df['corrupt_reasoning'], self.df['num_corrupted'] = zip(*self.df.apply(corrupt_digit, axis = 1))
+        self.df = self.df.dropna(how = 'any').drop_duplicates(ignore_index=True)
     
-    def corrupt_in_middle(self, granularity: int = 35) -> None:
+    def corrupt_in_middle(self, granularity: int = 20) -> None:
         """Replace the original values with corrupted ones in the middle of the thinking chain.
         
         This method:
@@ -212,32 +217,44 @@ class Reasoner_QDigitCorruptRA(OpenLMEngine):
             # Calculate how many chunks to keep based on percentile
             num_chunks = max(1, int(len(think_chunks) * percentile))
             
-            actual_fraction = num_chunks / len(think_chunks)
-            
             # Only keep the first num_chunks
-            selected_chunks = think_chunks[:num_chunks]
+            selected_reasoning = '\n\n'.join(think_chunks[:num_chunks])
+            frequent_digit, frequency = 0, 0
+
+            for char in "0123456789":
+                if selected_reasoning.count(char) > frequency:
+                    frequent_digit = char
+                    frequency = selected_reasoning.count(char)
             
+            if frequency == 0:
+                return None, None
+            else:
+                corrupt_digit = self.modify(frequent_digit)
+                corrupted_reasoning = selected_reasoning.replace(frequent_digit, corrupt_digit)
+
+                return corrupted_reasoning, frequency
+
             # Corrupt all digits in the selected chunks
-            corrupt_reasoning = []
-            for chunk in selected_chunks:
-                # Use a more efficient approach to replace digits
-                # Process the chunk character by character to avoid butterfly effects
-                corrupted_chunk = ""
-                for char in chunk:
-                    if char in '0123456789':
-                        # Replace digit with (digit+1)%10
-                        corrupted_chunk += str((int(char) + 1) % 10)
-                    else:
-                        corrupted_chunk += char
-                corrupt_reasoning.append(corrupted_chunk)
-                        # Join the corrupted chunks
-            corrupt_reasoning = '\n\n'.join(corrupt_reasoning)
-            return corrupt_reasoning, actual_fraction
+            # corrupt_reasoning = []
+            # for chunk in selected_chunks:
+            #     # Use a more efficient approach to replace digits
+            #     # Process the chunk character by character to avoid butterfly effects
+            #     corrupted_chunk = ""
+            #     for char in chunk:
+            #         if char in '0123456789':
+            #             # Replace digit with (digit+1)%10
+            #             corrupted_chunk += str((int(char) + 1) % 10)
+            #         else:
+            #             corrupted_chunk += char
+            #     corrupt_reasoning.append(corrupted_chunk)
+            #             # Join the corrupted chunks
+            # corrupt_reasoning = '\n\n'.join(corrupt_reasoning)
+            # return corrupt_reasoning, actual_fraction
         
         # Precompute think_chunks for all rows at once
         self.df['think_chunks'] = self.df['original_response'].apply(chunking)
         # Define percentiles to test
-        pct_df = pd.DataFrame({"percentile": [0.1, 0.15, 0.25, 0.3, 0.5, 0.75, 1.0]})
+        pct_df = pd.DataFrame({"percentile": [0.15, 0.25, 0.35, 0.5, 0.75, 0.9, 1.0]})
         
         # Use vectorized operations where possible
         self.df = self.df.merge(pct_df, how='cross')
@@ -248,13 +265,12 @@ class Reasoner_QDigitCorruptRA(OpenLMEngine):
             results.append(corrupt_digit(row))
         
         self.df['corrupt_reasoning'] = [r[0] for r in results]
-        self.df['percentile'] = [r[1] for r in results]
+        self.df['frequency'] = [r[1] for r in results]
 
         # Clean up the dataframe
-        self.df = self.df.dropna(subset=['corrupt_reasoning']) \
-                        .drop_duplicates(ignore_index=True, subset=['corrupt_reasoning'])
+        self.df = self.df.dropna(how = 'any').drop_duplicates(ignore_index=True, subset=['corrupt_reasoning'])
 
-    def eval(self, continue_thinking: bool = False) -> None:
+    def eval(self) -> None:
         """Evaluate the model on the dataset and save results.
         
         This method:
@@ -265,8 +281,11 @@ class Reasoner_QDigitCorruptRA(OpenLMEngine):
         try:
             # Generate model responses
             prompts = self.df['problem'] + self.df['corrupt_reasoning']
-            if not continue_thinking:
-                prompts += ' </think> To solve this question, ' 
+            
+            # if corrupt digit in answer digit, we force answer w/ </think>
+            if self.corrupt_type == 'answer_digit':
+                prompts += ' </think> Given' 
+
             self.response = self.generate(prompts=prompts).rename(columns = {'response': 'post_corruption_response'})
             self.response.index = self.df.index
             self.df = pd.concat([self.df, self.response], axis=1)
@@ -288,7 +307,7 @@ class Reasoner_QDigitCorruptRA(OpenLMEngine):
             self.df['still_correct'] = correctness
             
             # Save results
-            output_path = os.path.join(self.output_dir, f"{self.nick_name}_type={self.corrupt_type}_continuethinking={continue_thinking}.pickle")
+            output_path = os.path.join(self.output_dir, f"{self.nick_name}_type={self.corrupt_type}.pickle")
             self.df.to_pickle(output_path)
             
             # Log summary statistics
@@ -324,8 +343,6 @@ if __name__=="__main__":
                         help="Top-k sampling parameter")
     parser.add_argument("--corrupt_type", type=str, default="answer_digit",
                         help="Type of corruption to apply")
-    parser.add_argument("--continue_thinking", type=str, default="False",
-                        help="Continue thinking parameter (True or False)")
     
     args = parser.parse_args()
     engine = Reasoner_QDigitCorruptRA(
@@ -333,5 +350,4 @@ if __name__=="__main__":
     )
     
     engine.corrupt()
-    continue_thinking = args.continue_thinking.lower() == "true"
-    engine.eval(continue_thinking=continue_thinking)
+    engine.eval()

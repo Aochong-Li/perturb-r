@@ -10,6 +10,19 @@ from typing import Tuple
 import logging
 import numpy as np
 
+BEGIN_PHRASE = "Solve this problem:"
+TRANSITION_PHRASE = " Alright, let me think about this problem. "
+
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() == "true":
+        return True
+    elif v.lower() == "false":
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
 class Reasoner_QDistractRA(OpenLMEngine):  # Fixed typo in class name
     def __init__(self,
                  model_name: str,
@@ -26,6 +39,8 @@ class Reasoner_QDistractRA(OpenLMEngine):  # Fixed typo in class name
                  temperature: float = 0.6,
                  top_p: float = 0.9,
                  top_k: int = 32,
+                 midway: bool = False,
+                 inject_user_prompt: bool = False,
                  **kwargs
                  ):
         # Initialize attributes first
@@ -39,6 +54,9 @@ class Reasoner_QDistractRA(OpenLMEngine):  # Fixed typo in class name
         self.top_p = top_p
         self.top_k = top_k
         self.granularity = granularity
+        self.midway = midway
+        self.inject_user_prompt = inject_user_prompt
+
         # Create output directory if it doesn't exist
         os.makedirs(self.output_dir, exist_ok=True)
         
@@ -114,8 +132,7 @@ class Reasoner_QDistractRA(OpenLMEngine):  # Fixed typo in class name
 
             # Sample rows to use as distractors
             self.df['think_chunks'] = self.df['original_response'].apply(self.chunking)
-            self.distract_candidates = self.df[self.df['think_chunks'].str.len().between(30,45)]
-            self.distract_candidates = self.df.sample(n=num_distract_candidates, random_state=45)
+            self.distract_candidates = self.df[self.df['think_chunks'].str.len().between(30,45)].sample(n=num_distract_candidates, random_state=45)
             self.distract_candidates = self.distract_candidates[['problem', 'solution', 'think_chunks']] \
                                                 .rename(columns={
                                                     'problem': 'problem_distractor',
@@ -158,9 +175,30 @@ class Reasoner_QDistractRA(OpenLMEngine):  # Fixed typo in class name
         
         return distract_reasoning, num_distract_tokens
 
+    def add_original_reasoning_prefix (self):
+        pct_df = pd.DataFrame({"percentile": [0.10, 0.25, 0.5, 0.75, 0.9]})
+        self.df = self.df.merge(pct_df, how='cross')
+
+        self.df["original_reasoning_prefix"] = self.df["original_response"].apply(self.chunking)
+
+        def process_prefix (row):
+            percentile = row["percentile"]
+            chunks = row["original_reasoning_prefix"]
+
+            num_chunks = max(1, int(len(chunks) * percentile))
+            selected_chunks = chunks[:num_chunks]
+            prefix = '\n\n'.join(selected_chunks)
+            num_prefix_tokens = len(self.tokenizer.encode(prefix))
+
+            return prefix, num_prefix_tokens
+        
+        self.df["original_reasoning_prefix"], self.df["num_original_reasoning_prefix_tokens"] = zip(*self.df.apply(process_prefix, axis=1))
+        
+        self.df = self.df.drop(columns=["percentile"]).drop_duplicates()
+
     def distract(self):
         """Distract the dataset by adding distractor reasoning to problems."""
-        # Define percentiles to test
+        # Define percentiles to test    
         pct_df = pd.DataFrame({"percentile": [0.10, 0.25, 0.5, 0.75, 0.9]})
         # Use cross merge to create combinations of problems and percentiles
         self.df = self.df.merge(pct_df, how='cross')
@@ -169,9 +207,13 @@ class Reasoner_QDistractRA(OpenLMEngine):  # Fixed typo in class name
         results = self.df.apply(self.generate_distract_reasoning, axis=1)
         self.df['distract_reasoning'] = [r[0] for r in results]
         self.df['num_distract_tokens'] = [r[1] for r in results]
-
-        self.df = self.df.drop(columns=['percentile']).drop_duplicates()
     
+        self.df = self.df.drop(columns=['percentile']).drop_duplicates()
+
+        if self.midway:
+            self.add_original_reasoning_prefix()
+            self.df["distract_reasoning"] = self.df["original_reasoning_prefix"] + TRANSITION_PHRASE + self.df["distract_reasoning"]
+            
     def eval(self) -> None:
         """Evaluate the model on the dataset and save results.
         
@@ -180,7 +222,16 @@ class Reasoner_QDistractRA(OpenLMEngine):  # Fixed typo in class name
         """
         try:
             # Generate model responses
-            prompts = self.df['problem'] + self.df['distract_reasoning']
+            if self.inject_user_prompt:
+                probe = [{"role": "user", "content": "thisisprobe"}]
+                _, suffix = self.tokenizer.apply_chat_template(probe, 
+                                                                    tokenize=False, 
+                                                                    add_generation_prompt=True
+                                                                    ).split("thisisprobe")
+                prompts = self.df["problem"].str.replace(suffix, "") + TRANSITION_PHRASE + self.df['distract_reasoning'] + suffix
+            else:
+                prompts = self.df['problem'] + self.df['distract_reasoning']
+            
             self.response = self.generate(prompts=prompts).rename(columns = {'response': 'post_distraction_response'})
             self.response.index = self.df.index
             self.df = pd.concat([self.df, self.response], axis=1)
@@ -212,7 +263,8 @@ class Reasoner_QDistractRA(OpenLMEngine):  # Fixed typo in class name
             self.df['distractor_correct'] = distractor_correctness
             
             # Save results
-            output_path = os.path.join(self.output_dir, f"{self.nick_name}.pickle")
+            fname = f"{self.nick_name}{'_midway' if self.midway else ''}{'_inject_user_prompt' if self.inject_user_prompt else ''}.pickle"
+            output_path = os.path.join(self.output_dir, fname)
             self.df.to_pickle(output_path)
             
             # Log summary statistics
@@ -253,11 +305,15 @@ if __name__=="__main__":
                         help="Number of problems to use as distractors")
     parser.add_argument("--granularity", type=int, default=20,
                         help="Granularity of the thinking chunks")
+    parser.add_argument("--midway", type=str2bool, default=False,
+                        help="Whether to add original reasoning prefix midway")
+    parser.add_argument("--inject_user_prompt", type=str2bool, default=False,
+                        help="Whether to inject user prompt")
     
     args = parser.parse_args()
     engine = Reasoner_QDistractRA(
         **vars(args),
     )
 
-    engine.distract()  # Fixed method name from corrupt() to distract()
+    engine.distract() 
     engine.eval()

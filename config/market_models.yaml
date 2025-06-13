@@ -1,17 +1,12 @@
 models:
-  # - model_name: "Qwen/Qwen3-30B-A3B"
-  #   nick_name: "Qwen3-30B-A3B"
-
   # - model_name: "Qwen/Qwen3-30B-A3B-Base"
   #   nick_name: "Qwen3-30B-A3B-Base"
-
 
   # - model_name: "BytedTsinghua-SIA/DAPO-Qwen-32B"
   #   nick_name: "DAPO-Qwen-32B"
   
   # - model_name: "l3lab/L1-Qwen-1.5B-Max"
   #   nick_name: "L1-Qwen-1.5B-Max"
-
 
   # - model_name: "aochongoliverli/Qwen2.5-Math-1.5B-DeepMath-Hard-SFT-continue-3912"
   #   nick_name: "Qwen2.5-Math-1.5B-DeepMath-Hard-SFT-continue-3912-steps"
@@ -28,38 +23,48 @@ models:
   # - model_name: "sail/Qwen2.5-Math-7B-Oat-Zero"
   #   nick_name: "Qwen2.5-Math-7B-DrGRPO-Zero"
 
-  # - model_name: "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
-  #   nick_name: "R1-Distill-Qwen-1.5B"
+  ## Qwen 2.5 series
+  - model_name: "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
+    nick_name: "R1-Distill-Qwen-1.5B"
 
-  # - model_name: "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B"
-  #   nick_name: "R1-Distill-Qwen-7B"
+  - model_name: "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B"
+    nick_name: "R1-Distill-Qwen-7B"
 
-  # - model_name: "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B"
-  #   nick_name: "R1-Distill-Qwen-14B"
-  
-  # - model_name: "deepseek-ai/DeepSeek-R1-Distill-Llama-8B"
-  #   nick_name: "R1-Distill-Llama-8B"
+  - model_name: "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B"
+    nick_name: "R1-Distill-Qwen-14B"
 
-  # - model_name: "Qwen/QwQ-32B"
-  #   nick_name: "QwQ-32B"
-  
-  # - model_name: "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B"
-  #   nick_name: "R1-Distill-Qwen-32B"
+  - model_name: "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B"
+    nick_name: "R1-Distill-Qwen-32B"
 
-  - model_name: "Qwen/Qwen3-1.7B"
-    nick_name: "Qwen3-1.7B"
+  - model_name: "a-m-team/AM-Thinking-v1"
+    nick_name: "AM-Distill-Qwen-32B"
+
+  - model_name: "Qwen/QwQ-32B"
+    nick_name: "QwQ-32B"
+
+  ## Qwen 3 series
+  # - model_name: "Qwen/Qwen3-1.7B"
+  #   nick_name: "Qwen3-1.7B"
   
   # - model_name: "Qwen/Qwen3-4B"
   #   nick_name: "Qwen3-4B"
 
-  - model_name: "Qwen/Qwen3-8B"
-    nick_name: "Qwen3-8B"
+  # - model_name: "Qwen/Qwen3-8B"
+  #   nick_name: "Qwen3-8B"
 
   # - model_name: "deepseek-ai/DeepSeek-R1-0528-Qwen3-8B"
   #   nick_name: "R1-Distill-Qwen3-8B"
 
-
+  # - model_name: "Qwen/Qwen3-30B-A3B"
+  #   nick_name: "Qwen3-30B-A3B"
   
+  # - model_name: "Qwen/Qwen3-32B"
+  #   nick_name: "Qwen3-32B"
+
+  ## Llama 3 series
+  # - model_name: "deepseek-ai/DeepSeek-R1-Distill-Llama-8B"
+  #   nick_name: "R1-Distill-Llama-8B"
+
 
 
   
