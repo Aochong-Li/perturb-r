@@ -1,0 +1,12 @@
+# Ignore Python cache
+__pycache__/
+
+# Ignore log files
+*.log
+
+# Ignore secrets
+.env
+
+
+# evaluations results
+./results
