@@ -9,4 +9,4 @@ __pycache__/
 
 
 # evaluations results
-./results
+results/
