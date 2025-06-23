@@ -2,7 +2,7 @@ set -ex
 
 export CUDA_VISIBLE_DEVICES=0,1
 MODELS_YAML="config/market_models.yaml"
-EVAL_DIR="./results/hendrycks_math/sample200"
+EVAL_DIR="./results/math-500"
 OUTPUT_DIR="$EVAL_DIR/digit_corruption"
 
 MODELS_INFO=$(python -c "

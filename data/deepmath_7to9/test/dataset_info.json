@@ -1,0 +1,60 @@
+{
+  "builder_name": "parquet",
+  "citation": "",
+  "config_name": "default",
+  "dataset_name": "deep_math-103_k-split",
+  "dataset_size": 29913567,
+  "description": "",
+  "download_checksums": {
+    "hf://datasets/aochongoliverli/DeepMath-103K-split@43c204b0abbe6d5ad3a2b3f5d6c23425e6cb191f/data/train-00000-of-00001.parquet": {
+      "num_bytes": 10529793,
+      "checksum": null
+    },
+    "hf://datasets/aochongoliverli/DeepMath-103K-split@43c204b0abbe6d5ad3a2b3f5d6c23425e6cb191f/data/test-00000-of-00001.parquet": {
+      "num_bytes": 2632509,
+      "checksum": null
+    }
+  },
+  "download_size": 13162302,
+  "features": {
+    "difficulty": {
+      "dtype": "float64",
+      "_type": "Value"
+    },
+    "topic": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "problem": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "solution": {
+      "dtype": "string",
+      "_type": "Value"
+    }
+  },
+  "homepage": "",
+  "license": "",
+  "size_in_bytes": 43075869,
+  "splits": {
+    "train": {
+      "name": "train",
+      "num_bytes": 23930836,
+      "num_examples": 82417,
+      "dataset_name": "deep_math-103_k-split"
+    },
+    "test": {
+      "name": "test",
+      "num_bytes": 5982731,
+      "num_examples": 20605,
+      "dataset_name": "deep_math-103_k-split"
+    }
+  },
+  "version": {
+    "version_str": "0.0.0",
+    "major": 0,
+    "minor": 0,
+    "patch": 0
+  }
+}

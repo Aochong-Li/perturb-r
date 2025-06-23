@@ -6,8 +6,15 @@ from llm_engine import *
 import argparse
 from datasets import load_dataset, load_from_disk
 from reward_score.math import compute_score
-import pdb
 import numpy as np
+
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() == "true":
+        return True
+    elif v.lower() == "false":
+        return False
 
 class Reasoner_QRA(OpenLMEngine):
     def __init__(self,
@@ -18,7 +25,7 @@ class Reasoner_QRA(OpenLMEngine):
                  subset_name: str = None,
                  split_name: str = 'test',
                  sample_size: int = None,
-                 output_dir: str = './results/hendrycks_math/sample200/reasoning',
+                 output_dir: str = './results/hendrycks_math/sample200/benchmark_eval',
                  tensor_parallel_size: int = 1,
                  gpu_memory_utilization: float = 0.85,
                  dtype: str = "bfloat16",
@@ -27,6 +34,8 @@ class Reasoner_QRA(OpenLMEngine):
                  top_p: float = 1.0,
                  top_k: int = 0,
                  pass_at_k: int = 1,
+                 enable_thinking: bool = True,
+                 overwrite: bool = False
                  ):
 
         # Initialize attributes first
@@ -40,9 +49,19 @@ class Reasoner_QRA(OpenLMEngine):
         self.top_p = top_p
         self.top_k = top_k
         self.pass_at_k = pass_at_k
+        self.enable_thinking = enable_thinking
+        self.overwrite = overwrite
 
         # Create output directory if it doesn't exist
         os.makedirs(self.output_dir, exist_ok=True)
+        if not self.overwrite:
+            if os.path.exists(os.path.join(self.output_dir, f"{self.nick_name}{'_nothinking' if not self.enable_thinking else ''}.pickle")):
+                print(f"Results already exist for {self.nick_name} with enable_thinking={self.enable_thinking}")
+                exit()
+        elif "qwen3" not in self.nick_name.lower():
+            print(f"No-Thinking mode is not supported for {self.nick_name}")
+            exit()
+        
         # Load dataset
         self.load_dataset(
             dataset_name_or_path,
@@ -95,14 +114,20 @@ class Reasoner_QRA(OpenLMEngine):
         chat_history = [
             {'role': 'user', 'content': question}
         ]
-
-        tokenized_prompt = self.tokenizer.apply_chat_template(
-            chat_history,
-            tokenize = False,
-            add_generation_prompt = True,
-        )
-        # if "<think>" not in tokenized_prompt.lower().split("assistant")[-1]:
-        #     tokenized_prompt += "<think>"
+        if not self.enable_thinking:
+            tokenized_prompt = self.tokenizer.apply_chat_template(
+                chat_history,
+                tokenize = False,
+                add_generation_prompt = True,
+                enable_thinking=self.enable_thinking
+            )
+        else:
+            tokenized_prompt = self.tokenizer.apply_chat_template(
+                chat_history,
+                tokenize = False,
+                add_generation_prompt = True,
+            )
+        
         return tokenized_prompt
     
     def eval(self) -> None:
@@ -140,7 +165,7 @@ class Reasoner_QRA(OpenLMEngine):
             self.df['correct'] = correctness
             
             # Save results
-            output_path = os.path.join(self.output_dir, f"{self.nick_name}.pickle")
+            output_path = os.path.join(self.output_dir, f"{self.nick_name}{'_nothinking' if not self.enable_thinking else ''}.pickle")
             self.df.to_pickle(output_path)
 
             # Save the subset of df where correct == 1.0
@@ -184,7 +209,11 @@ if __name__=="__main__":
                         help="Top-k sampling parameter")
     parser.add_argument("--pass_at_k", type=int, default=1,
                         help="Pass@k parameter")
-
+    parser.add_argument("--overwrite", type=str2bool, default=False,
+                        help="Overwrite existing results")
+    parser.add_argument("--enable_thinking", type=str2bool, default=True,
+                        help="Enable thinking")
+    
     args = parser.parse_args()
     engine = Reasoner_QRA(
         **vars(args),

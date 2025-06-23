@@ -5,8 +5,11 @@ export CUDA_VISIBLE_DEVICES=0,1
 # Path to the models YAML file
 MODELS_YAML="config/market_models.yaml"
 DATASET_PATH="./data/deepmath_7to9"
-OUTPUT_DIR="./results/deepmath_7to9/benchmark"
+EVAL_DIR="./results/deepmath_7to9"
 PASS_AT_K=3
+FILLER_WORD="wait"
+NUM_FILLER_TOKENS=(5000 10000 15000)
+OVERWRITE=false
 
 # Use Python to extract model information from YAML
 MODELS_INFO=$(python -c "
@@ -19,24 +22,22 @@ for model in data['models']:
 
 # Loop through each model
 echo "$MODELS_INFO" | while IFS=, read -r model_name nick_name; do
-    for enable_thinking in True False; do
-        echo "Running model: $nick_name (model_name: $model_name) with enable_thinking=$enable_thinking"
+    echo "Filler Thinking Stress Test: $nick_name (model_name: $model_name)"
 
-        python benchmark_eval.py \
+    python stress-test/fillter_thinking.py \
         --model_name "$model_name" \
         --nick_name "$nick_name" \
         --tokenizer_name "$model_name" \
-        --dataset_name_or_path $DATASET_PATH \
-        --split_name "test" \
-        --output_dir $OUTPUT_DIR \
+        --results_dir $EVAL_DIR \
         --tensor_parallel_size 1 \
         --gpu_memory_utilization 0.85 \
         --dtype bfloat16 \
-        --max_tokens 16384 \
+        --max_tokens 4096 \
         --temperature 0.6 \
         --top_p 1.0 \
         --top_k -1 \
         --pass_at_k $PASS_AT_K \
-        --enable_thinking $enable_thinking
-    done
+        --filler_word "$FILLER_WORD" \
+        --num_filler_tokens ${NUM_FILLER_TOKENS[@]} \
+        --overwrite $OVERWRITE
 done 
