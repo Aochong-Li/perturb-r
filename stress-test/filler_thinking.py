@@ -1,19 +1,14 @@
 import os
 import pandas as pd
 import numpy as np
-import sys
-sys.path.append("/home/al2644/research")
 from codebase.reasoning.llm_engine import *
 import argparse
 from reward_score.math import compute_score
 import logging
-import json
-import random
-import re
-from typing import Dict, Set
+from typing import List
 
 
-class FilterThinking(OpenLMEngine):
+class FillerThinking(OpenLMEngine):
     def __init__(self,
                  model_name: str,
                  nick_name: str,
@@ -48,7 +43,13 @@ class FilterThinking(OpenLMEngine):
         self.filler_word = filler_word
         self.num_filler_tokens = num_filler_tokens
         self.overwrite = overwrite
+
         self.output_dir = os.path.join(self.results_dir, f"filler_thinking")
+        os.makedirs(self.output_dir, exist_ok=True)
+
+        if os.path.exists(os.path.join(self.output_dir, f"{self.nick_name}.pickle")) and not overwrite:
+            print(f"Dataset already exists: {self.nick_name}")
+            exit()
 
         # Initialize the LLM engine
         config = ModelConfig(
@@ -67,6 +68,7 @@ class FilterThinking(OpenLMEngine):
 
         # Load dataset
         self.load_dataset()
+
         # Fill thinking
         self.fill_thinking()
     
@@ -149,5 +151,5 @@ if __name__ == "__main__":
     parser.add_argument("--overwrite", type=bool, default=False)
     args = parser.parse_args()
 
-    engine = FilterThinking(**vars(args))
+    engine = FillerThinking(**vars(args))
     engine.eval()

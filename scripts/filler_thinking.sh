@@ -24,7 +24,7 @@ for model in data['models']:
 echo "$MODELS_INFO" | while IFS=, read -r model_name nick_name; do
     echo "Filler Thinking Stress Test: $nick_name (model_name: $model_name)"
 
-    python stress-test/fillter_thinking.py \
+    python stress-test/filler_thinking.py \
         --model_name "$model_name" \
         --nick_name "$nick_name" \
         --tokenizer_name "$model_name" \
