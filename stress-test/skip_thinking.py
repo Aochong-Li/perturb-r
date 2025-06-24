@@ -1,7 +1,10 @@
+import sys
 import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import pandas as pd
 import numpy as np
-from codebase.reasoning.llm_engine import *
+from llm_engine import *
 import argparse
 from reward_score.math import compute_score
 import logging
@@ -142,6 +145,5 @@ if __name__ == "__main__":
     parser.add_argument("--overwrite", type=bool, default=False)
     args = parser.parse_args()
 
-    import ipdb; ipdb.set_trace()
     engine = SkipThinking(**vars(args))
     engine.eval()

@@ -1,9 +1,10 @@
+import sys
 import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import pandas as pd
 import numpy as np
-import sys
-sys.path.append("/home/al2644/research")
-from codebase.reasoning.llm_engine import *
+from llm_engine import *
 import argparse
 from reward_score.math import compute_score
 from utils.process_thinking import chunk

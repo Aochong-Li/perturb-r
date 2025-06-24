@@ -1,6 +1,6 @@
 #!/bin/bash
 set -ex
-export CUDA_VISIBLE_DEVICES=0,1
+export CUDA_VISIBLE_DEVICES=0,1,2,3
 
 # Path to the models YAML file
 MODELS_YAML="config/market_models.yaml"
@@ -8,7 +8,7 @@ DATASET_PATH="./data/aime2425"
 EVAL_DIR="./results/aime2425"
 PASS_AT_K=8
 OVERWRITE=false
-
+TP=$(echo $CUDA_VISIBLE_DEVICES | tr ',' '\n' | wc -l)
 # Use Python to extract model information from YAML
 MODELS_INFO=$(python -c "
 import yaml
@@ -27,7 +27,7 @@ echo "$MODELS_INFO" | while IFS=, read -r model_name nick_name; do
         --nick_name "$nick_name" \
         --tokenizer_name "$model_name" \
         --results_dir $EVAL_DIR \
-        --tensor_parallel_size 1 \
+        --tensor_parallel_size $TP \
         --gpu_memory_utilization 0.85 \
         --dtype bfloat16 \
         --max_tokens 8192 \
