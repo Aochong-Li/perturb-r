@@ -25,13 +25,16 @@ class ModelConfig:
     stop_tokens: Optional[List[str]] = None
     logprobs: Optional[int] = None
     prompt_logprobs: Optional[int] = None
-    gpu_memory_utilization: float = 0.4
+    gpu_memory_utilization: float = 0.75
     dtype: str = 'bfloat16'
-    max_num_batched_tokens: Optional[int] = None
+    max_num_batched_tokens: Optional[int] = 32768
     tensor_parallel_size: int = 1
     pipeline_parallel_size: int = 1
     distributed_executor_backend: str = 'mp'
-    trust_remote_code: bool = False
+    trust_remote_code: bool = True
+    enable_chunked_prefill: bool = True
+    enable_prefix_caching: bool = True
+    speculative_config: Optional[Union[dict, str]] = "auto"
 
 class OpenLMEngine:
     """
@@ -41,6 +44,23 @@ class OpenLMEngine:
         self.config = config
         self.model_name = config.model_name
         self.tokenizer_name = config.tokenizer_name or config.model_name
+
+        if self.config.speculative_config == "auto":
+            if "R1-Distill" in self.config.model_name:
+                self.config.speculative_config = {
+                    "model": "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B",
+                    "num_speculative_tokens": 6,
+                    "draft_tensor_parallel_size": 2
+                }
+            elif "Qwen3" in self.config.model_name:
+                self.config.speculative_config = {
+                    "model": "Qwen/Qwen3-1.7B",
+                    "num_speculative_tokens": 6,
+                    "draft_tensor_parallel_size": 2
+                }
+            else:
+                self.config.speculative_config = None
+
         self._load_model_and_tokenizer()
 
     def _load_model_and_tokenizer(self) -> None:
@@ -48,6 +68,7 @@ class OpenLMEngine:
         if hasattr(self, "model"):
             logging.info("Model already loaded, skipping reload.")
             return
+
         logging.info(f"Loading model: {self.model_name}")
         self.model = LLM(
             model=self.model_name,
@@ -60,8 +81,11 @@ class OpenLMEngine:
             pipeline_parallel_size=self.config.pipeline_parallel_size,
             distributed_executor_backend=self.config.distributed_executor_backend,
             trust_remote_code=self.config.trust_remote_code,
-            enforce_eager=True
+            enable_chunked_prefill=self.config.enable_chunked_prefill,
+            enable_prefix_caching=self.config.enable_prefix_caching,
+            speculative_config=self.config.speculative_config
         )
+
         self.sampling_params = SamplingParams(
             n=self.config.n,
             best_of=max(self.config.best_of, self.config.n),
@@ -137,15 +161,16 @@ class OpenLMEngine:
 
 if __name__ == '__main__':
     config = ModelConfig(
-        model_name="Qwen/Qwen3-1.7B",
-        tokenizer_name="Qwen/Qwen3-1.7B",
-        tensor_parallel_size=2,
-        gpu_memory_utilization=0.6,
+        model_name="Qwen/Qwen3-8B",
+        tokenizer_name="Qwen/Qwen3-8B",
+        tensor_parallel_size=4,
+        gpu_memory_utilization=0.85,
         dtype="bfloat16",
         max_tokens=16384,
         temperature=0.6,
         top_p=1.0,
-        top_k=-1
+        top_k=-1,
+        speculative_config="auto"
     )
     engine = OpenLMEngine(config)
     engine.console_generate()
