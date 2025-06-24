@@ -58,7 +58,7 @@ class Reasoner_QRA(OpenLMEngine):
             if os.path.exists(os.path.join(self.output_dir, f"{self.nick_name}{'_nothinking' if not self.enable_thinking else ''}.pickle")):
                 print(f"Results already exist for {self.nick_name} with enable_thinking={self.enable_thinking}")
                 exit()
-        elif "qwen3" not in self.nick_name.lower():
+        elif "qwen3" not in self.nick_name.lower() and not self.enable_thinking:
             print(f"No-Thinking mode is not supported for {self.nick_name}")
             exit()
         
@@ -193,9 +193,9 @@ if __name__=="__main__":
     parser.add_argument("--sample_size", type=int, default=None, help="Number of samples to use (default: None)")
     parser.add_argument("--output_dir", type=str, default='/share/goyal/lio/reasoning/eval/', 
                        help="Directory to save evaluation results")
-    parser.add_argument("--tensor_parallel_size", type=int, default=1,
+    parser.add_argument("--tensor_parallel_size", type=int, default=2,
                         help="Number of GPUs for tensor parallelism")
-    parser.add_argument("--gpu_memory_utilization", type=float, default=0.4,
+    parser.add_argument("--gpu_memory_utilization", type=float, default=0.75,
                         help="Fraction of GPU memory to allocate")
     parser.add_argument("--dtype", type=str, default="bfloat16",
                         help="Data type for model weights (e.g., bfloat16, float16)")

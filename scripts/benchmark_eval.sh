@@ -2,11 +2,13 @@
 set -ex
 export CUDA_VISIBLE_DEVICES=0,1
 
-# Path to the models YAML file
+# Hyperparameters
+DATASET_NAME="aime2425"
+PASS_AT_K=8
+# Paths
 MODELS_YAML="config/market_models.yaml"
-DATASET_PATH="./data/deepmath_7to9"
-OUTPUT_DIR="./results/deepmath_7to9/benchmark"
-PASS_AT_K=3
+DATASET_PATH="./data/$DATASET_NAME"
+OUTPUT_DIR="./results/$DATASET_NAME/benchmark"
 
 # Use Python to extract model information from YAML
 MODELS_INFO=$(python -c "
@@ -29,14 +31,15 @@ echo "$MODELS_INFO" | while IFS=, read -r model_name nick_name; do
         --dataset_name_or_path $DATASET_PATH \
         --split_name "test" \
         --output_dir $OUTPUT_DIR \
-        --tensor_parallel_size 1 \
-        --gpu_memory_utilization 0.85 \
+        --tensor_parallel_size 2 \
+        --gpu_memory_utilization 0.75 \
         --dtype bfloat16 \
         --max_tokens 16384 \
         --temperature 0.6 \
         --top_p 1.0 \
         --top_k -1 \
         --pass_at_k $PASS_AT_K \
+        --overwrite False \
         --enable_thinking $enable_thinking
     done
 done 

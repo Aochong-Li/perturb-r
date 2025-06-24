@@ -6,6 +6,7 @@ sys.path.append("/home/al2644/research")
 from codebase.reasoning.llm_engine import *
 import argparse
 from reward_score.math import compute_score
+from utils.process_thinking import chunk
 import logging
 import json
 import random
@@ -151,42 +152,7 @@ class CorruptNumbers(OpenLMEngine):
         reasoning, _ = response.split('</think>')
         reasoning += "</think>\n"
 
-        def chunk(reasoning: str):
-            chunks = reasoning.split('\n\n')
-            masks = [len(chunk.split()) > granularity for chunk in chunks]
-            
-            # Step 1: chunk the sequence into small chunks
-            merged, buffer = [], []
-            for c, m in zip(chunks, masks):
-                if not m:
-                    buffer.append(c)
-                else:
-                    if buffer:
-                        merged.append('\n\n'.join(buffer))
-                        buffer.clear()
-                    merged.append(c)
-            if buffer:
-                merged.append('\n\n'.join(buffer))
-            
-            # Step 2: merge small chunks to big chunks
-            super_chunks, current = [], None
-            for c in merged:
-                if len(c.split()) > granularity:
-                    if current is not None:
-                        super_chunks.append(current)
-                    current = c
-                else:
-                    if current is None:
-                        current = c
-                    else:
-                        current += '\n\n' + c
-            
-            if current is not None:
-                super_chunks.append(current)
-            
-            return super_chunks
-
-        return chunk(reasoning)
+        return chunk(reasoning, granularity)
     
     def corrupt_number(self, rng: random.Random) -> None:
         def extract_number(text: str) -> Set[str]:
