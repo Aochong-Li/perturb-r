@@ -8,6 +8,7 @@ __pycache__/
 .env
 
 # Ignore some local results
+results/
 results/deepmath_7to9/
 results/hendrycks_math/
 results/math-500/
