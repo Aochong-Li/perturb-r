@@ -30,7 +30,7 @@ def main():
         return
     
     # Filter for difficulty levels 7, 8, 9
-    filtered_dataset = dataset.filter(lambda x: x['difficulty'] in [7, 8, 9])
+    filtered_dataset = dataset.filter(lambda x: x['difficulty'] in [7, 8, 9] and x['final_answer'].lower() not in ["yes", "no", "true", "false"])
     
     if len(filtered_dataset) == 0:
         print("No samples found with difficulty 7, 8, or 9!")
@@ -47,7 +47,7 @@ def main():
         if 'question' in example:
             example['problem'] = example.pop('question')
         if 'final_answer' in example:
-            example['solution'] = example.pop('final_answer')
+            example['answer'] = example.pop('final_answer')
         return example
     
     final_dataset = sampled_dataset.map(rename_columns)

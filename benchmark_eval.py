@@ -1,7 +1,6 @@
 import os
 import pandas as pd
-import sys
-sys.path.append("/home/al2644/research")
+
 from llm_engine import *
 import argparse
 from datasets import load_dataset, load_from_disk
@@ -80,7 +79,8 @@ class Reasoner_QRA(OpenLMEngine):
             max_tokens=self.max_tokens,
             temperature=self.temperature,
             top_p=self.top_p,
-            top_k=self.top_k
+            top_k=self.top_k,
+            n = self.pass_at_k
         )
 
         # Initialize parent class
@@ -141,15 +141,18 @@ class Reasoner_QRA(OpenLMEngine):
         """
         try:
             # Apply chat template to problems
-            self.df = self.df.loc[np.repeat(self.df.index, self.pass_at_k)].reset_index(drop=True)
             prompts = self.df['problem'].apply(self.apply_chat_template)
 
             # Generate model responses
             self.response = self.generate(prompts=prompts)
+            self.df = self.df.loc[np.repeat(self.df.index, self.pass_at_k)].reset_index(drop=True)
+
+            self.response.index = self.df.index
+            self.df = pd.concat([self.df, self.response], axis=1)
             
             # Compute correctness scores
             correctness = []
-            for idx, row in self.response.iterrows():
+            for idx, row in self.df.iterrows():
                 solution = row['response']
                 ground_truth = self.df.loc[idx, 'solution']
                 
@@ -161,7 +164,6 @@ class Reasoner_QRA(OpenLMEngine):
                 correctness.append(score)
             
             # Combine results
-            self.df = pd.concat([self.df, self.response], axis=1)
             self.df['correct'] = correctness
             
             # Save results

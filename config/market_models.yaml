@@ -49,8 +49,8 @@ models:
   # - model_name: "Qwen/Qwen3-4B"
   #   nick_name: "Qwen3-4B"
 
-  - model_name: "Qwen/Qwen3-8B"
-    nick_name: "Qwen3-8B"
+  # - model_name: "Qwen/Qwen3-8B"
+  #   nick_name: "Qwen3-8B"
 
   # - model_name: "Qwen/Qwen3-14B"
   #   nick_name: "Qwen3-14B"

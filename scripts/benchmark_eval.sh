@@ -3,8 +3,8 @@ set -ex
 export CUDA_VISIBLE_DEVICES=0,1
 
 # Hyperparameters
-DATASET_NAME="aime2425"
-PASS_AT_K=8
+DATASET_NAME="deepmath_7to9"
+PASS_AT_K=5
 # Paths
 MODELS_YAML="config/market_models.yaml"
 DATASET_PATH="./data/$DATASET_NAME"
@@ -39,7 +39,7 @@ echo "$MODELS_INFO" | while IFS=, read -r model_name nick_name; do
         --top_p 1.0 \
         --top_k -1 \
         --pass_at_k $PASS_AT_K \
-        --overwrite False \
+        --overwrite True \
         --enable_thinking $enable_thinking
     done
 done 

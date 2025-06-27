@@ -9,6 +9,7 @@ EVAL_DIR="./results/aime2425"
 PASS_AT_K=8
 OVERWRITE=false
 TP=$(echo $CUDA_VISIBLE_DEVICES | tr ',' '\n' | wc -l)
+
 # Use Python to extract model information from YAML
 MODELS_INFO=$(python -c "
 import yaml

@@ -60,7 +60,8 @@ class SkipThinking(OpenLMEngine):
             max_tokens=self.max_tokens,
             temperature=self.temperature,
             top_p=self.top_p,
-            top_k=self.top_k
+            top_k=self.top_k,
+            n = self.pass_at_k
         )
 
         super().__init__(config=config)
@@ -78,7 +79,6 @@ class SkipThinking(OpenLMEngine):
         problems = set(thinking_df[thinking_df["correct"] == 1]["problem"]).difference(set(nonthinking_df[nonthinking_df["correct"] == 1]["problem"]))
 
         self.df = thinking_df[thinking_df["problem"].isin(problems)].drop(columns=["response", "correct"]).drop_duplicates(subset=["problem"], ignore_index=True)
-        self.df = self.df.loc[np.repeat(self.df.index, self.pass_at_k)].reset_index(drop=True)
     
     def skip_thinking(self):
         def prepare_prompt (row):
@@ -102,6 +102,8 @@ class SkipThinking(OpenLMEngine):
     def eval(self):
         try:
             self.response = self.generate(prompts=self.df["prompt"]).rename(columns = {'response': 'post_corruption_response'})
+            
+            self.df = self.df.loc[np.repeat(self.df.index, self.pass_at_k)].reset_index(drop=True)
             self.response.index = self.df.index
             self.df = pd.concat([self.df, self.response], axis=1)
 

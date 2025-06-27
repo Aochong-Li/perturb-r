@@ -25,7 +25,7 @@ class FillerThinking(OpenLMEngine):
                  top_p: float = 1.0,
                  top_k: int = -1,
                  pass_at_k: int = 3,
-                 filler_word: str = "wait",
+                 filler_word: str = "---",
                  num_filler_tokens: List[int] = [5000, 10000, 15000],
                  overwrite: bool = False,
                  **kwargs
@@ -64,7 +64,8 @@ class FillerThinking(OpenLMEngine):
             max_tokens=self.max_tokens,
             temperature=self.temperature,
             top_p=self.top_p,
-            top_k=self.top_k
+            top_k=self.top_k,
+            n=self.pass_at_k
         )
 
         super().__init__(config=config)
@@ -81,10 +82,9 @@ class FillerThinking(OpenLMEngine):
 
         problems = set(thinking_df[thinking_df["correct"] == 1]["problem"]).difference(set(nonthinking_df[nonthinking_df["correct"] == 1]["problem"]))
 
-        self.df = thinking_df[thinking_df["problem"].isin(problems)].drop(columns=["response", "correct"]).drop_duplicates(ignore_index=True)
+        self.df = thinking_df[thinking_df["problem"].isin(problems)].drop(columns=["response", "correct"]).drop_duplicates(subset=["problem"], ignore_index=True)
         self.df["num_filler_tokens"] = len(self.df) * [self.num_filler_tokens]
         self.df = self.df.explode("num_filler_tokens", ignore_index=True)
-        self.df = self.df.loc[np.repeat(self.df.index, self.pass_at_k)].reset_index(drop=True)
     
     def fill_thinking(self):
         def prepare_prompt (row):
@@ -100,7 +100,7 @@ class FillerThinking(OpenLMEngine):
             )
             if "<think>" in prompt:
                 prompt = prompt.split("<think>")[0]
-            prompt += "<think>\n" + self.filler_word * num_filler_tokens + "\n</think>\n"
+            prompt += "<think>\n" + self.filler_word * num_filler_tokens + "\n</think>\n\nTo solve the problem,"
 
             return prompt
         
@@ -108,7 +108,10 @@ class FillerThinking(OpenLMEngine):
 
     def eval(self):
         try:
+            self.df = self.df.sort_values(by="num_filler_tokens", ascending=False)
             self.response = self.generate(prompts=self.df["prompt"]).rename(columns = {'response': 'post_corruption_response'})
+            self.df = self.df.loc[np.repeat(self.df.index, self.pass_at_k)].reset_index(drop=True)
+
             self.response.index = self.df.index
             self.df = pd.concat([self.df, self.response], axis=1)
 
@@ -149,10 +152,10 @@ if __name__ == "__main__":
     parser.add_argument("--top_p", type=float, default=1.0)
     parser.add_argument("--top_k", type=int, default=-1)
     parser.add_argument("--pass_at_k", type=int, default=3)
-    parser.add_argument("--filler_word", type=str, default="wait")
+    parser.add_argument("--filler_word", type=str, default="---")
     parser.add_argument("--num_filler_tokens", type=int, nargs='+', default=[5000, 10000, 15000])
     parser.add_argument("--overwrite", type=bool, default=False)
     args = parser.parse_args()
-
+    
     engine = FillerThinking(**vars(args))
     engine.eval()

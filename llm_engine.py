@@ -10,6 +10,8 @@ from vllm import LLM, SamplingParams
 
 # Allow longer max_model_len in vLLM
 os.environ["VLLM_ALLOW_LONG_MAX_MODEL_LEN"] = "1"
+os.environ['CURL_CA_BUNDLE'] = ''
+os.environ['REQUESTS_CA_BUNDLE'] = ''
 
 @dataclass
 class ModelConfig:
@@ -19,7 +21,7 @@ class ModelConfig:
     max_model_len: int = 32768
     temperature: float = 0.6
     n: int = 1
-    best_of: int = 1
+    # best_of: int = 1
     top_p: float = 0.95
     top_k: int = 32
     stop_tokens: Optional[List[str]] = None
@@ -32,8 +34,10 @@ class ModelConfig:
     pipeline_parallel_size: int = 1
     distributed_executor_backend: str = 'mp'
     trust_remote_code: bool = True
-    # enable_chunked_prefill: bool = True
-    # enable_prefix_caching: bool = True
+    enable_chunked_prefill: bool = True
+    enable_prefix_caching: bool = True
+    # Speed optimization parameters
+    enforce_eager: bool = False  # Keep CUDA graphs for speed
     # speculative_config: Optional[Union[dict, str]] = "auto"
 
 class OpenLMEngine:
@@ -81,15 +85,15 @@ class OpenLMEngine:
             pipeline_parallel_size=self.config.pipeline_parallel_size,
             distributed_executor_backend=self.config.distributed_executor_backend,
             trust_remote_code=self.config.trust_remote_code,
-            # enable_chunked_prefill=self.config.enable_chunked_prefill,
-            # enable_prefix_caching=self.config.enable_prefix_caching,
+            enable_chunked_prefill=self.config.enable_chunked_prefill,
+            enable_prefix_caching=self.config.enable_prefix_caching,
             # speculative_config=self.config.speculative_config,
-            enforce_eager=True
+            enforce_eager=self.config.enforce_eager
         )
 
         self.sampling_params = SamplingParams(
             n=self.config.n,
-            best_of=max(self.config.best_of, self.config.n),
+            # best_of=max(self.config.best_of, self.config.n),
             logprobs=self.config.logprobs,
             prompt_logprobs=self.config.prompt_logprobs,
             max_tokens=self.config.max_tokens,
@@ -162,16 +166,15 @@ class OpenLMEngine:
 
 if __name__ == '__main__':
     config = ModelConfig(
-        model_name="Qwen/Qwen3-8B",
-        tokenizer_name="Qwen/Qwen3-8B",
-        tensor_parallel_size=4,
+        model_name="Qwen/Qwen3-1.7B",
+        tokenizer_name="Qwen/Qwen3-1.7B",
+        tensor_parallel_size=2,
         gpu_memory_utilization=0.85,
         dtype="bfloat16",
         max_tokens=16384,
         temperature=0.6,
         top_p=1.0,
-        top_k=-1,
-        speculative_config="auto"
+        top_k=-1
     )
     engine = OpenLMEngine(config)
     engine.console_generate()
