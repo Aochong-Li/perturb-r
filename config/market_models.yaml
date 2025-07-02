@@ -43,8 +43,8 @@ models:
   #   nick_name: "QwQ-32B"
 
   ## Qwen 3 series
-  - model_name: "Qwen/Qwen3-1.7B"
-    nick_name: "Qwen3-1.7B"
+  # - model_name: "Qwen/Qwen3-1.7B"
+  #   nick_name: "Qwen3-1.7B"
   
   # - model_name: "Qwen/Qwen3-4B"
   #   nick_name: "Qwen3-4B"
@@ -67,6 +67,26 @@ models:
   ## Llama 3 series
   # - model_name: "deepseek-ai/DeepSeek-R1-Distill-Llama-8B"
   #   nick_name: "R1-Distill-Llama-8B"
+
+  ## DeepMath Distilled model
+  # - model_name: "zwhe99/DeepMath-1.5B"
+  #   nick_name: "DeepMath-1.5B"
+
+
+  ## CountDown Distilled model
+  - model_name: "aochongoliverli/Qwen2.5-3B-sft-distill-countdown-level3-4-150"
+    nick_name: "Qwen2.5-3B-distill-countdown-level3-4-1epoch"
+
+  # - model_name: "aochongoliverli/Qwen2.5-3B-sft-distill-countdown-level3-4-300"
+  #   nick_name: "Qwen2.5-3B-distill-countdown-level3-4-2epoch"
+
+  # - model_name: "aochongoliverli/Qwen2.5-3B-sft-distill-countdown-level3-4-441"
+  #   nick_name: "Qwen2.5-3B-distill-countdown-level3-4-3epoch"
+
+  ## CountDown RL from 1 epoch Distilled model
+  - model_name: "aochongoliverli/Qwen2.5-3B-countdown-level4-5-grpo-20k-1epoch"
+    nick_name: "Qwen2.5-3B-grpo-countdown-level4-5-1epoch"
+
 
 
 

@@ -1,10 +1,12 @@
 import os
 import pandas as pd
 
-from llm_engine import *
+from core.llm_engine import *
 import argparse
 from datasets import load_dataset, load_from_disk
-from reward_score.math import compute_score
+from reward_score.math import math_compute_score
+from reward_score.countdown import compute_score as countdown_compute_score
+
 import numpy as np
 
 def str2bool(v):
@@ -15,7 +17,7 @@ def str2bool(v):
     elif v.lower() == "false":
         return False
 
-class Reasoner_QRA(OpenLMEngine):
+class BenchmarkEval(OpenLMEngine):
     def __init__(self,
                  model_name: str,
                  nick_name: str,
@@ -154,13 +156,18 @@ class Reasoner_QRA(OpenLMEngine):
             correctness = []
             for idx, row in self.df.iterrows():
                 solution = row['response']
-                ground_truth = self.df.loc[idx, 'solution']
-                
-                # Clean solution if it contains thinking steps
                 if "</think>" in solution:
                     solution = solution.split("</think>")[1]
-                
-                score = compute_score(solution, ground_truth)
+                task = row.get('task', 'math')
+
+                if task == 'math':
+                    ground_truth = self.df.loc[idx, 'solution']
+                    score = math_compute_score(solution, ground_truth)
+                elif task == 'countdown':
+                    numbers = self.df.loc[idx, 'nums']
+                    target = self.df.loc[idx, 'target']
+                    score = countdown_compute_score(solution, numbers, target)
+
                 correctness.append(score)
             
             # Combine results
@@ -169,12 +176,7 @@ class Reasoner_QRA(OpenLMEngine):
             # Save results
             output_path = os.path.join(self.output_dir, f"{self.nick_name}{'_nothinking' if not self.enable_thinking else ''}.pickle")
             self.df.to_pickle(output_path)
-
-            # Save the subset of df where correct == 1.0
-            if self.pass_at_k == 1:
-                correct_output_path = output_path.replace(self.nick_name, self.nick_name + "_correct")
-                self.df[self.df['correct'] == 1.0].reset_index(drop=True).to_pickle(correct_output_path)
-                
+         
             # Log summary statistics
             accuracy = sum(correctness) / len(correctness)
             print(f"Evaluation complete. Accuracy: {accuracy:.2%}")
@@ -217,7 +219,8 @@ if __name__=="__main__":
                         help="Enable thinking")
     
     args = parser.parse_args()
-    engine = Reasoner_QRA(
+
+    engine = BenchmarkEval(
         **vars(args),
     )
     engine.eval()

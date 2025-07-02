@@ -4,18 +4,22 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import pandas as pd
 import numpy as np
-from llm_engine import *
-import argparse
-from reward_score.math import compute_score
-from utils.process_thinking import chunk
 import logging
 import json
 import random
-import re
-from typing import Dict, Set
+import argparse
+
+from core.llm_engine import *
+
+from reward_score.math import compute_score as math_compute_score
+from reward_score.countdown import compute_score as countdown_compute_score, extract_solution
+
+from utils.chunk_r import equal_chunk
+from utils.corrupt_num import *
 
 class CorruptNumbers(OpenLMEngine):
     def __init__(self,
+                 task: str,
                  model_name: str,
                  nick_name: str,
                  tokenizer_name: str,
@@ -28,11 +32,13 @@ class CorruptNumbers(OpenLMEngine):
                  temperature: float = 0.6,
                  top_p: float = 0.9,
                  top_k: int = 32,
+                 granularity: int = 20,
                  overwrite: bool = False,
                  generate_data_only: bool = False,
                  **kwargs
                  ):
         # Initialize attributes first
+        self.task = task
         self.nick_name = nick_name
         self.results_dir = results_dir
         self.question_ids_fname = question_ids_fname
@@ -43,13 +49,14 @@ class CorruptNumbers(OpenLMEngine):
         self.temperature = temperature
         self.top_p = top_p
         self.top_k = top_k
-    
+        self.granularity = granularity
+
         # Create output directory if it doesn't exist
         self.output_dir = os.path.join(self.results_dir, "corrupt_numbers")
         os.makedirs(self.output_dir, exist_ok=True)
 
         if os.path.exists(os.path.join(self.output_dir, f"{self.nick_name}.pickle")) and not overwrite:
-            print(f"Dataset already exists: {self.nick_name}")
+            print(f"Stress test (Corrupt Numbers) already exists: {self.nick_name}")
             exit()
         
         # Load dataset from pickle file
@@ -85,14 +92,22 @@ class CorruptNumbers(OpenLMEngine):
         question_ids = json.load(open(os.path.join(self.results_dir, self.question_ids_fname)))
 
         try:
-            self.df = pd.read_pickle(self.dataset_path)
-            self.df = self.df[
-                self.df['unique_id'].isin(question_ids) & 
-                (self.df['correct'] == 1) & 
-                (self.df["response"].str.contains("</think>"))
-            ]
-            self.df = self.df.drop_duplicates(subset = ["unique_id"]).reset_index(drop = True)
-            self.df = self.df.drop(columns = ['correct']).rename(columns = {'response': 'original_response'})
+            if self.task == "math":
+                self.compute_score = math_compute_score
+                self.df = pd.read_pickle(self.dataset_path)
+                self.df = self.df[
+                    self.df['unique_id'].isin(question_ids) & 
+                    (self.df['correct'] == 1) & 
+                    (self.df["response"].str.contains("</think>"))
+                ]
+                self.df = self.df.drop_duplicates(subset = ["unique_id"]).reset_index(drop = True)
+                self.df = self.df.drop(columns = ['correct']).rename(columns = {'response': 'original_response'})
+            elif self.task == "countdown":
+                self.compute_score = countdown_compute_score
+                self.df = pd.read_pickle(self.dataset_path)
+                self.df = self.df[self.df['problem'].isin(question_ids)].reset_index(drop = True)
+                self.df = self.df.drop(columns = ['correct']).rename(columns = {'response': 'original_response'})
+            
         except Exception as e:
             raise RuntimeError(f"Failed to load dataset from pickle file: {e}")
 
@@ -104,7 +119,7 @@ class CorruptNumbers(OpenLMEngine):
         
         # generate all possible start and end positions
         pos = np.arange(0, 1, unit)
-        windows = [(round(p, 1), round(p + unit, 1)) for p in pos]
+        windows = [(round(p, 2), round(p + unit, 2)) for p in pos]
         
         def sample_window (row, windows=windows):
             chunks = row["reasoning_chunks"]
@@ -149,93 +164,13 @@ class CorruptNumbers(OpenLMEngine):
         
         self.corrupt_number(rng)
     
-    def process_response(self, response: str, granularity: int = 20) -> None:
+    def process_response(self, response: str) -> None:
         reasoning, _ = response.split('</think>')
         reasoning += "</think>\n"
 
-        return chunk(reasoning, granularity)
+        return equal_chunk(reasoning, self.granularity)
     
     def corrupt_number(self, rng: random.Random) -> None:
-        def extract_number(text: str) -> Set[str]:
-            """
-            Return the set of all (unique) numeric literals in `text`.
-            Handles integers, decimals with either leading or trailing digits,
-            and optional scientific notation.
-            """
-            _NUMBER_RE = re.compile(
-                r'(?:\d+\.\d+|\d+|\.\d+)'        # 123.456   | 123   | .456
-            )
-            return {m.group(0) for m in _NUMBER_RE.finditer(text)}
-
-        def perturb_number(num: str, rng: random.Random) -> str:
-            """
-            Make a realistic one-step typo in `num` under the rules:
-                • single-digit integer  → substitute with a different digit
-                • multi-digit integer  → transpose OR dup/del (50-50)
-                • float (contains '.') → decimal-point error (random mode)
-            Always returns a *different* string and never introduces a leading zero.
-            """
-            sign = ''
-            if num[0] in '+-':            # keep explicit sign, if any
-                sign, num = num[0], num[1:]
-
-            def _strip_leading_zero(s: str) -> str:
-                while len(s) > 1 and s[0] == '0' and s[1].isdigit():
-                    s = s[1:]
-                return s
-
-            # ---------------------- floats ------------------------------------------
-            if '.' in num:
-                digits = num.replace('.', '')
-                if rng.random() < 0.5 or len(digits) < 2:
-                    new_core = digits
-
-                else:
-                    new_pos = rng.randint(0, len(digits))
-                    new_core = digits[:new_pos] + '.' + digits[new_pos:]
-                new_core = _strip_leading_zero(new_core)
-
-            # ---------------------- integers ----------------------------------------
-            elif len(num) == 1:
-                # single digit → substitute
-                new_digit = rng.choice([d for d in '0123456789' if d != num])
-                new_core = new_digit
-            else:
-                # multi-digit int
-                if rng.random() < .5:          # --- randomize the order of digits
-                    lst = list(num)
-                    rng.shuffle(lst)
-                    new_core = ''.join(lst)
-                else:                           # ---- duplicate OR delete
-                    i = rng.randint(0, len(num) - 1)
-                    if rng.random() < 0.5 and len(num) > 1:   # delete
-                        new_core = num[:i] + num[i+1:]
-                    else:                                     # duplicate
-                        new_core = num[:i+1] + num[i] + num[i+1:]
-                new_core = _strip_leading_zero(new_core)
-
-            # Guarantee change; if not, recurse once (extremely rare)
-            if new_core == num:
-                return perturb_number(num, rng)
-            return sign + new_core
-        
-        def replace_number(text: str, replacement: Dict[str, str]) -> str:
-            """
-            Replace every numeric literal in `text` according to `replacement`.
-            Any number not in the dict is left unchanged.
-            """
-            _NUMBER_RE = re.compile(
-                r'(?<!\w)'          # not preceded by a letter/number/underscore
-                r'(?:\d+\.\d+|'     # 123.456
-                r'\d+|'             # 123
-                r'\.\d+)'           # .456
-                r'(?!\w)'           # not followed by a letter/number/underscore
-            )
-            return _NUMBER_RE.sub(
-                lambda m: replacement.get(m.group(0), m.group(0)),
-                text
-            )
-
         def process_corrupted_reasoning(row):
             corrupted_reasoning = row["corrupted_reasoning"]
             numbers = extract_number(corrupted_reasoning)
@@ -245,7 +180,19 @@ class CorruptNumbers(OpenLMEngine):
             
             return corrupted_reasoning, replacement
         
-        self.df["corrupted_reasoning"], self.df["replacement"] = zip(*self.df.apply(process_corrupted_reasoning, axis=1))
+        def countdown_corrupt_number (row):
+            corrupted_reasoning = row["corrupted_reasoning"]
+            target = row["target"]
+            numbers = extract_number(corrupted_reasoning)
+
+            replacement = {number: perturb_number(number, rng) for number in list(numbers) if number != target}
+            
+            corrupted_reasoning = replace_number(corrupted_reasoning, replacement)
+            
+            return corrupted_reasoning, replacement
+        
+        func = countdown_corrupt_number if self.task == "countdown" else process_corrupted_reasoning
+        self.df["corrupted_reasoning"], self.df["replacement"] = zip(*self.df.apply(func, axis=1))
 
     def eval(self) -> None:
         """Evaluate the model on the dataset and save results.
@@ -264,15 +211,17 @@ class CorruptNumbers(OpenLMEngine):
             # Case 1: corrupt the reasoning trace after </think>
             self.post_think_df = self.df.copy()
             self.post_think_df["prompt"] = template_prefix + self.post_think_df["problem"] + template_suffix + \
-                self.post_think_df['prefix_reasoning'] + '\n\n' + self.post_think_df['corrupted_reasoning']
-            self.post_think_df["type"] = "post_</think>"
+                self.post_think_df['prefix_reasoning'] + self.post_think_df['corrupted_reasoning']
+            self.post_think_df["type"] = "post_<think>"
 
             # Case 2: corrupt the reasoning trace before </think>
             self.pre_think_df = self.df.copy()
             self.pre_think_df["prompt"] = template_prefix +  self.pre_think_df["problem"] + \
-                "\n\n This is my thought process for this problem: " + \
-                self.pre_think_df['corrupted_reasoning'] + '\n\n' + self.pre_think_df['prefix_reasoning'] + template_suffix
-            self.pre_think_df["type"] = "pre_</think>"
+                "\n\nThis is user's thought process for this problem: " + \
+                self.pre_think_df['prefix_reasoning'].replace("<think>", "") + \
+                self.pre_think_df['corrupted_reasoning'].replace("<think>", "") + template_suffix
+            
+            self.pre_think_df["type"] = "pre_<think>"
 
             self.df = pd.concat([self.post_think_df, self.pre_think_df], axis=0, ignore_index=True)
             
@@ -280,21 +229,31 @@ class CorruptNumbers(OpenLMEngine):
             self.response.index = self.df.index
             self.df = pd.concat([self.df, self.response], axis=1)
 
-            # Compute correctness scores
+            # Compute correctness scores and check if model answers
             correctness = []
+            if_answer = []
             for _, row in self.df.iterrows():
                 solution = row['post_corruption_response']
-                ground_truth = row['solution']
                 
                 # Clean solution if it contains thinking steps
                 if "</think>" in solution:
                     solution = solution.split("</think>")[-1]
                 
-                score = compute_score(solution, ground_truth)
+                if self.task == "math":
+                    ground_truth = row.get("solution")
+                    score = self.compute_score(solution, ground_truth)
+                elif self.task == "countdown":
+                    numbers, target = row['nums'], row['target']
+                    score = self.compute_score(solution, numbers, target)
+                    if_answer.append(extract_solution(solution) != None)
+
                 correctness.append(score)
             
             # Combine results
             self.df['still_correct'] = correctness
+            
+            if if_answer:
+                self.df['if_answer'] = if_answer
             
             # Save results
             output_path = os.path.join(self.output_dir, f"{self.nick_name}.pickle")
@@ -311,6 +270,7 @@ class CorruptNumbers(OpenLMEngine):
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description="Parse Arguments for Reasoner QA evaluation")
 
+    parser.add_argument("--task", type=str, required=True, help="Task to evaluate on")
     parser.add_argument("--model_name", type=str, required=True, help="Name of the model to use")
     parser.add_argument("--nick_name", type=str, required=True, help="Nickname for the model")
     parser.add_argument("--tokenizer_name", type=str, required=True, help="Name of the tokenizer to use")
@@ -330,19 +290,22 @@ if __name__=="__main__":
                         help="Nucleus sampling parameter")
     parser.add_argument("--top_k", type=int, default=0,
                         help="Top-k sampling parameter")
-    parser.add_argument("--overwrite", type=bool, default=False,
+    parser.add_argument("--granularity", type=int, default=20,
+                        help="Granularity of the reasoning chunks")
+    parser.add_argument("--unit", type=float, default=0.25,
+                        help="Unit of the reasoning chunks")
+    parser.add_argument("--overwrite", action="store_true",
                         help="Overwrite existing results")
-    parser.add_argument("--generate_data_only", type=bool, default=False,
+    parser.add_argument("--generate_data_only", action="store_true",
                         help="Generate data only")
     parser.add_argument("--seed", type=int, default=42,
                         help="Random seed for reproducibility")
     
     args = parser.parse_args()
-    
     engine = CorruptNumbers(
         **vars(args),
     )
         
-    engine.corrupt_thinking(unit = 0.2, seed = args.seed)
+    engine.corrupt_thinking(unit = args.unit, seed = args.seed)
     if not args.generate_data_only:
         engine.eval()

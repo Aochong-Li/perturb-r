@@ -10,8 +10,8 @@ from vllm import LLM, SamplingParams
 
 # Allow longer max_model_len in vLLM
 os.environ["VLLM_ALLOW_LONG_MAX_MODEL_LEN"] = "1"
-os.environ['CURL_CA_BUNDLE'] = ''
-os.environ['REQUESTS_CA_BUNDLE'] = ''
+# os.environ['CURL_CA_BUNDLE'] = ''
+# os.environ['REQUESTS_CA_BUNDLE'] = ''
 
 @dataclass
 class ModelConfig:
@@ -159,19 +159,18 @@ class OpenLMEngine:
 
             try:
                 df = self.generate(user_input)
-                for idx, resp in enumerate(df['response'], 1):
-                    print(f"Response {idx}: {resp}\n")
+                for _, resp in enumerate(df['response'], 1):
+                    print(f"Assistant: {resp}\n")
             except Exception as e:
                 logging.error(f"Generation error: {e}")
 
 if __name__ == '__main__':
     config = ModelConfig(
-        model_name="Qwen/Qwen3-1.7B",
-        tokenizer_name="Qwen/Qwen3-1.7B",
+        model_name="/home/al2644/research/codebase/reasoning/rlvr/outputs/countdown/Qwen2.5-3B-sft-1epoch-countdown-level4-5-1epochs-4rollouts-4096max-length/global_step_156/actor",
         tensor_parallel_size=2,
         gpu_memory_utilization=0.85,
         dtype="bfloat16",
-        max_tokens=16384,
+        max_tokens=8192,
         temperature=0.6,
         top_p=1.0,
         top_k=-1

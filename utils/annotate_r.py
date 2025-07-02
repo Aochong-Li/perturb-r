@@ -1,7 +1,7 @@
 import os
 import pandas as pd
 from openai_engine import OpenAI_Engine
-from utils.chunk_r import minmax_chunk
+from utils.chunk_r import equal_chunk
 from reward_score.math import *
 import re
 import argparse
@@ -57,7 +57,7 @@ class ReasoningAnnotator:
                 return None, None
             reasoning, _ = response.split("</think>")
 
-            chunks = minmax_chunk(reasoning, self.granuality)
+            chunks = equal_chunk(reasoning, self.granuality)
             prompt = """<instruction>
 You are given a sequence of reasoning steps, divided into chunks, showing how a model solves a problem. Your task is to precisely identify the first potential answer that model has reached. The first candidate does NOT NEED to be correct. But, the model should either explicitly mention that it can be the answer or imply that it thinks that it can be the answer before any checking or verification. The first answer candidate does NOT need to be confirmed, verified, or boxed. 
     
@@ -149,7 +149,7 @@ reasoning trace:
                 return None, None
             reasoning, _ = response.split("</think>")
 
-            chunks = minmax_chunk(reasoning, self.granuality)
+            chunks = equal_chunk(reasoning, self.granuality)
             prompt = """<instruction> You are given a sequence of reasoning steps, divided into chunks, showing how a model solves a problem. Your task is to carefully search for and precisely identify the first chunk where the correct answer is reached, even if not yet confirmed, verified, or boxed. The answer may appear implicitly at first—your job is to confirm its first correct appearance. This task requires meticulous attention to traces.
 
 You should scan through the chunks from the start, ensuring that the chunk you report is the earliest point:

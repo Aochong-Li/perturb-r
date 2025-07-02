@@ -1,9 +1,7 @@
 import re
 from typing import List
-import re
-from typing import List
 
-def minmax_chunk(text: str, granularity: int = 40) -> List[str]:
+def equal_chunk(text: str, granularity: int = 40) -> List[str]:
     G, MAX = granularity, 2 * granularity
     paras = re.split(r'\n{2,}', text)
     raw_chunks: List[str] = []
@@ -14,13 +12,26 @@ def minmax_chunk(text: str, granularity: int = 40) -> List[str]:
         if G <= wpara <= MAX:
             raw_chunks.append(p)
         elif wpara < G:
-            # too small → defer to merging step
-            raw_chunks.append(p)
+            raw_chunks.append(p)          # too small → defer to merge step
         else:
             # break on lines
             buf, count = [], 0
             for line in p.splitlines(keepends=True):
-                w = len(line.split())
+                words = line.split()
+                w = len(words)
+
+                # --- NEW: handle a single line that is itself > MAX ---
+                if w > MAX:
+                    # flush any buffered lines first
+                    if buf:
+                        raw_chunks.append(''.join(buf))
+                        buf, count = [], 0
+                    # slice the long line into ≤MAX-word pieces
+                    for i in range(0, w, MAX):
+                        raw_chunks.append(' '.join(words[i:i+MAX]) + '\n')
+                    continue
+                # ------------------------------------------------------
+
                 # if adding line busts MAX, flush
                 if buf and count + w > MAX:
                     raw_chunks.append(''.join(buf))
@@ -28,7 +39,7 @@ def minmax_chunk(text: str, granularity: int = 40) -> List[str]:
 
                 buf.append(line); count += w
 
-                # if we’ve reached at least G, flush
+                # if we've reached at least G, flush
                 if count >= G:
                     raw_chunks.append(''.join(buf))
                     buf, count = [], 0
@@ -46,13 +57,12 @@ def minmax_chunk(text: str, granularity: int = 40) -> List[str]:
             prev = chunks[-1]
             wprev = len(prev.split())
             if wprev + wc <= MAX:
-                # safe to merge
-                chunks[-1] = prev + "\n\n" + c
+                chunks[-1] = prev + "\n\n" + c   # safe to merge
                 continue
-        # otherwise just push as new chunk
         chunks.append(c)
 
     return chunks
+
 
 # def minmax_chunk(reasoning: str, granularity: int = 30) -> List[str]:
     """
@@ -120,7 +130,7 @@ def minmax_chunk(text: str, granularity: int = 40) -> List[str]:
     assert ''.join(chunks) == reasoning
     return chunks
 
-def min_chunk_deprecated(reasoning: str, granularity: int = 30):
+def deprecated_chunk(reasoning: str, granularity: int = 30):
     """
     Chunk the reasoning into smaller chunks.
     """
@@ -157,44 +167,3 @@ def min_chunk_deprecated(reasoning: str, granularity: int = 30):
         super_chunks.append(current)
     
     return super_chunks
-
-# def chunk(reasoning: str, granularity: int = 20) -> List[str]:
-#     """
-#     Split `reasoning` into chunks whose word-counts lie in
-#     [granularity, 2*granularity]—without altering or omitting a single
-#     character.  Re-joining the returned list with ''.join(...) yields the
-#     original text verbatim.
-#     """
-#     G, MAX = granularity, 2 * granularity
-
-#     # Tokenise into alternating [non-space, space, non-space, ...] pieces.
-#     # Each token is either a word (≡ \S+) or whitespace (≡ \s+).
-#     tokens = re.findall(r'\S+|\s+', reasoning)
-
-#     chunks, buf, wcount = [], [], 0
-#     def flush():
-#         nonlocal buf, wcount
-#         if buf:
-#             chunks.append(''.join(buf))
-#             buf, wcount = [], 0
-
-#     for tok in tokens:
-#         buf.append(tok)
-#         if tok.strip():                 # counts only non-whitespace tokens
-#             wcount += 1
-
-#         # Hard upper bound
-#         if wcount >= MAX:
-#             flush()
-
-#     flush()                             # emit any remainder
-
-#     # Prevent a tiny tail chunk
-#     if len(chunks) >= 2 and len(re.findall(r'\S+', chunks[-1])) < G:
-#         chunks[-2] += chunks[-1]
-#         chunks.pop()
-
-#     # (Optional) sanity check: nothing lost, nothing duplicated
-#     assert ''.join(chunks) == reasoning, "Chunking altered the text!"
-
-#     return chunks
