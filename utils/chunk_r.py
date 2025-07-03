@@ -1,7 +1,7 @@
 import re
 from typing import List
 
-def equal_chunk(text: str, granularity: int = 40) -> List[str]:
+def equal_chunk(text: str, granularity: int = 30) -> List[str]:
     G, MAX = granularity, 2 * granularity
     paras = re.split(r'\n{2,}', text)
     raw_chunks: List[str] = []

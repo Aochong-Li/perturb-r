@@ -20,23 +20,25 @@ def process_fn(example, level):
 
 def main():
     """
+    python ./data/prepare_dataset/countdown.py --output_dir ./data/countdown_train_stage2_level5_35K --levels 5 --sample_size_per_level 35000 --skip_first_n 110000 --split train
     python ./data/prepare_dataset/countdown.py --output_dir ./data/countdown --levels 4 5 6 7 9 11 13 --sample_size_per_level 200
     python ./data/prepare_dataset/countdown.py --output_dir /share/goyal/lio/reasoning/data/countdown/sft/level3-4 --levels 3 4 --sample_size_per_level 5000
     """
     parser = argparse.ArgumentParser(description='Prepare Countdown dataset')
     parser.add_argument('--output_dir', default='./data/countdown', 
                        help='Output directory to save the dataset')
+    parser.add_argument('--skip_first_n', type=int, default=0, required=False, help="For each level, skip the first n samples")
     parser.add_argument('--sample_size_per_level', type=int, default=100,
                        help='Number of samples to extract per level')
     parser.add_argument('--levels', type=int, nargs="+", required=True,
                        help='Levels to prepare')
+    parser.add_argument('--split', type=str, default='test', required=False, help="Split to prepare")
     args = parser.parse_args()
     
     final_dataset = []
-
     for level in args.levels:
-        dataset = load_dataset(f"aochongoliverli/countdown_level_{level}", split="test")
-        sampled_dataset = dataset.select(range(args.sample_size_per_level))
+        dataset = load_dataset(f"aochongoliverli/countdown_level_{level}", split=args.split)
+        sampled_dataset = dataset.select(range(args.skip_first_n, args.skip_first_n + args.sample_size_per_level))
         sampled_dataset = sampled_dataset.map(lambda example: process_fn(example, level)).rename_columns({"solution": "example_solution"})
         final_dataset.append(sampled_dataset)
 

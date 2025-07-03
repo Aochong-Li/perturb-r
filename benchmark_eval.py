@@ -36,6 +36,7 @@ class BenchmarkEval(OpenLMEngine):
                  top_k: int = 0,
                  pass_at_k: int = 1,
                  enable_thinking: bool = True,
+                 max_num_batched_tokens: int = 32768,
                  overwrite: bool = False
                  ):
 
@@ -52,6 +53,7 @@ class BenchmarkEval(OpenLMEngine):
         self.pass_at_k = pass_at_k
         self.enable_thinking = enable_thinking
         self.overwrite = overwrite
+        self.max_num_batched_tokens = max_num_batched_tokens
 
         # Create output directory if it doesn't exist
         os.makedirs(self.output_dir, exist_ok=True)
@@ -82,7 +84,8 @@ class BenchmarkEval(OpenLMEngine):
             temperature=self.temperature,
             top_p=self.top_p,
             top_k=self.top_k,
-            n = self.pass_at_k
+            n = self.pass_at_k,
+            max_num_batched_tokens=self.max_num_batched_tokens
         )
 
         # Initialize parent class
@@ -217,7 +220,9 @@ if __name__=="__main__":
                         help="Overwrite existing results")
     parser.add_argument("--enable_thinking", type=str2bool, default=True,
                         help="Enable thinking")
-    
+    parser.add_argument("--max_num_batched_tokens", type=int, default=None,
+                        help="Maximum number of tokens to batch")
+
     args = parser.parse_args()
 
     engine = BenchmarkEval(

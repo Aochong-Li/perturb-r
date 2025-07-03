@@ -21,7 +21,7 @@ def filter_math_questions_stress_test (model_list: list,
                                   eval_dir: str,
                                   question_id: str="unique_id",
                                   min_correct: int=1,
-                                  test_size: int=200
+                                  test_size: Optional[int]= None
                                   ):
     random.seed(42)
     common_question_ids = set()
@@ -37,8 +37,11 @@ def filter_math_questions_stress_test (model_list: list,
                 common_question_ids = set(question_ids)
             else:
                 common_question_ids = common_question_ids.intersection(set(question_ids))
-
-    stress_test_sample = random.sample(list(common_question_ids), test_size)
+    
+    if test_size is not None:
+        stress_test_sample = random.sample(list(common_question_ids), test_size)
+    else:
+        stress_test_sample = list(common_question_ids)
     output_path = os.path.join(eval_dir, f"stress_test_question_ids.json")
 
     with open(output_path, "w") as f:

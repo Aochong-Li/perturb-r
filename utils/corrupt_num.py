@@ -12,7 +12,6 @@ def extract_number(text: str) -> Set[str]:
 
 def perturb_number(num: str, rng: random.Random, max_retries: int = 3) -> str:
     """One-step, human-like numeric typo."""
-
     sign = ''
     if num[0] in '+-':            # keep explicit sign, if any
         sign, num = num[0], num[1:]
