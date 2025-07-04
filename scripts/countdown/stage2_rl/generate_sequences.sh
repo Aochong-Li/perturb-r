@@ -10,7 +10,7 @@ MODELS_YAML="config/market_models.yaml"
 DATASET_PATH="./data/$DATASET_NAME"
 OUTPUT_DIR="./results/$DATASET_NAME/stage2_rl_gen_seq"
 
-MODEL_NAME="aochongoliverli/Qwen2.5-3B-countdown-level4-5-grpo-20k-1epoch"
+MODEL_NAME="aochongoliverli/Qwen2.5-3B-sft-distill-countdown-level3-4-150"
 NICK_NAME="Qwen2.5-3B-countdown-level4-5-stage1_rl"
 
 python benchmark_eval.py \
