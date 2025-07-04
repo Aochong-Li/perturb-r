@@ -63,12 +63,15 @@ class RandomThoughtGenerator(OpenLMEngine):
 
         print(f"Start generating random thoughts: {self.nick_name}")
     
+    def load_dataset(self) -> None:
+    
     def generate_random_thoughts(self, min_tokens: int = 2048) -> None:
         try:
             template = self.tokenizer.apply_chat_template(
-                [{"role": "user", "content": "Let's think about math problem"}], tokenize=False, add_generation_prompt=True
+                [{"role": "user", "content": "You need to solve this tricky math problem"}], tokenize=False, add_generation_prompt=True
             )
-            prompts = self.dataset_size * ["Let's think about math problem<think>", template + "<think>\n"]
+            dataset_size_per_template = self.dataset_size // 2
+            prompts = dataset_size_per_template * ["<think>", template + "<think>\n"]
             self.response = self.generate(prompts=prompts).rename(columns = {'response': 'random_thought'})
             self.response["prompt"] = prompts
 
