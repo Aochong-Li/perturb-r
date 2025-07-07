@@ -1,9 +1,9 @@
 #!/bin/bash
 set -ex
-export CUDA_VISIBLE_DEVICES=0,1
+export CUDA_VISIBLE_DEVICES=4,5,6,7
 
 # Hyperparameters
-DATASET_NAME="countdown"
+DATASET_NAME="deepmath"
 PASS_AT_K=1
 # Paths
 MODELS_YAML="config/market_models.yaml"
@@ -31,10 +31,10 @@ echo "$MODELS_INFO" | while IFS=, read -r model_name nick_name; do
         --dataset_name_or_path $DATASET_PATH \
         --split_name "test" \
         --output_dir $OUTPUT_DIR \
-        --tensor_parallel_size 2 \
+        --tensor_parallel_size 1 \
         --gpu_memory_utilization 0.75 \
         --dtype bfloat16 \
-        --max_tokens 8192 \
+        --max_tokens 16384 \
         --temperature 0.6 \
         --top_p 1.0 \
         --top_k -1 \

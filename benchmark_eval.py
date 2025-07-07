@@ -36,7 +36,7 @@ class BenchmarkEval(OpenLMEngine):
                  top_k: int = 0,
                  pass_at_k: int = 1,
                  enable_thinking: bool = True,
-                 max_num_batched_tokens: int = 32768,
+                 max_num_batched_tokens: int = None,
                  overwrite: bool = False
                  ):
 

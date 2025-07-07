@@ -37,7 +37,7 @@ class ModelConfig:
     enable_chunked_prefill: bool = True
     enable_prefix_caching: bool = True
     # Speed optimization parameters
-    enforce_eager: bool = False  # Keep CUDA graphs for speed
+    enforce_eager: bool = True  # Keep CUDA graphs for speed
     # speculative_config: Optional[Union[dict, str]] = "auto"
 
 class OpenLMEngine:
