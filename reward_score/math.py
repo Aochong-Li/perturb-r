@@ -14,9 +14,9 @@
 # Adapted from https://github.com/EleutherAI/lm-evaluation-harness/blob/main/lm_eval/tasks/hendrycks_math/utils.py
 from math_verify import parse, verify
 
-def compute_score(solution_str, ground_truth) -> float:
+def math_compute_score(solution_str, ground_truth) -> float:
 
-    math_result =  math_compute_score(solution_str, ground_truth)
+    math_result =  compute_score(solution_str, ground_truth)
     
     gold = parse(solution_str)
     answer = parse(ground_truth)
@@ -25,7 +25,14 @@ def compute_score(solution_str, ground_truth) -> float:
 
     return math_result or math_verify_result
 
-def math_compute_score(solution_str, ground_truth) -> float:
+def math_if_answer(solution_str) -> bool:
+    try:
+        solution_string_in_last_boxed = remove_boxed(last_boxed_only_string(solution_str))
+        return True
+    except Exception as e:
+        return False
+
+def compute_score(solution_str, ground_truth) -> float:
     retval = 0.
     try:
         solution_string_in_last_boxed = last_boxed_only_string(solution_str)

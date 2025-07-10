@@ -25,9 +25,10 @@ python benchmark_eval.py \
   --tensor_parallel_size  1 \
   --gpu_memory_utilization 0.75 \
   --dtype                 bfloat16 \
-  --max_tokens            8192 \
+  --max_tokens            12288 \
   --temperature           0.6 \
   --top_p                 1.0 \
   --top_k                -1 \
   --pass_at_k             "$PASS_AT_K" \
-  --overwrite             True
+  --max_num_batched_tokens 32768 \
+  --overwrite             False

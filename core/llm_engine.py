@@ -38,7 +38,6 @@ class ModelConfig:
     enable_prefix_caching: bool = True
     # Speed optimization parameters
     enforce_eager: bool = True  # Keep CUDA graphs for speed
-    # speculative_config: Optional[Union[dict, str]] = "auto"
 
 class OpenLMEngine:
     """
@@ -48,23 +47,6 @@ class OpenLMEngine:
         self.config = config
         self.model_name = config.model_name
         self.tokenizer_name = config.tokenizer_name or config.model_name
-
-        # if self.config.speculative_config == "auto":
-        #     if "R1-Distill" in self.config.model_name and self.config.model_name != "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B":
-        #         self.config.speculative_config = {
-        #             "model": "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B",
-        #             "num_speculative_tokens": 6,
-        #             "draft_tensor_parallel_size": 2
-        #         }
-        #     elif "Qwen3" in self.config.model_name and self.config.model_name != "Qwen/Qwen3-1.7B":
-        #         self.config.speculative_config = {
-        #             "model": "Qwen/Qwen3-1.7B",
-        #             "num_speculative_tokens": 6,
-        #             "draft_tensor_parallel_size": 2
-        #         }
-        #     else:
-        #         self.config.speculative_config = None
-
         self._load_model_and_tokenizer()
 
     def _load_model_and_tokenizer(self) -> None:
@@ -87,7 +69,6 @@ class OpenLMEngine:
             trust_remote_code=self.config.trust_remote_code,
             enable_chunked_prefill=self.config.enable_chunked_prefill,
             enable_prefix_caching=self.config.enable_prefix_caching,
-            # speculative_config=self.config.speculative_config,
             enforce_eager=self.config.enforce_eager
         )
 
@@ -166,14 +147,15 @@ class OpenLMEngine:
 
 if __name__ == '__main__':
     config = ModelConfig(
-        model_name="/home/al2644/research/codebase/reasoning/rlvr/outputs/countdown/Qwen2.5-3B-sft-1epoch-countdown-level4-5-1epochs-4rollouts-4096max-length/global_step_156/actor",
-        tensor_parallel_size=2,
+        model_name="/mnt/home/al2644/research/projects/rlvr/outputs/countdown/Qwen2.5-3B-countdown-level-5-2epochs-4rollouts-8192max-length-stage2/global_step_475/actor",
+        tensor_parallel_size=1,
         gpu_memory_utilization=0.85,
         dtype="bfloat16",
-        max_tokens=8192,
+        max_tokens=16384,
         temperature=0.6,
         top_p=1.0,
         top_k=-1
     )
+
     engine = OpenLMEngine(config)
     engine.console_generate()

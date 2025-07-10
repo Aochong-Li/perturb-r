@@ -4,6 +4,8 @@ import pandas as pd
 import argparse
 import sys
 import random
+from typing import Optional
+import ast
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -49,7 +51,8 @@ def filter_math_questions_stress_test (model_list: list,
 
 def filter_countdown_questions_stress_test (model_list: list,
                                             eval_dir: str,
-                                            levels: list
+                                            levels: list,
+                                            test_size: Optional[int]= None
                                             ):
     levels = [int(level) for level in levels]
     benchmark_dir = os.path.join(eval_dir, "benchmark")
@@ -57,12 +60,20 @@ def filter_countdown_questions_stress_test (model_list: list,
     for fname in os.listdir(benchmark_dir):
         if any(model in fname for model in model_list):
             df = pd.read_pickle(os.path.join(benchmark_dir, fname))
-            df = df[(df["level"].isin(levels)) & (df["correct"] == 1.)]
+            df = df[
+                    (df["level"].isin(levels)) & 
+                    (df["correct"] == 1.) & 
+                    (df["response"].str.contains("</think>"))
+                ].reset_index(drop = True)
+
             problems = df["problem"].tolist()
             try:
                 common_problems = common_problems.intersection(set(problems))
             except:
                 common_problems = set(problems)
+
+    if test_size is not None:
+        common_problems = random.sample(list(common_problems), test_size)
     
     output_path = os.path.join(eval_dir, f"stress_test_problems.json")
     with open(output_path, "w") as f:
@@ -81,14 +92,15 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.task == "math":
-        filter_math_questions_stress_test(args.model_list,
+        filter_math_questions_stress_test(ast.literal_eval(args.model_list),
                                     args.eval_dir,
                                     args.question_id,
                                     args.min_correct,
                                     args.test_size
                                     )
     elif args.task == "countdown":
-        filter_countdown_questions_stress_test(args.model_list,
+        filter_countdown_questions_stress_test(ast.literal_eval(args.model_list),
                                     args.eval_dir,
-                                    args.levels
+                                    args.levels,
+                                    args.test_size
                                     )

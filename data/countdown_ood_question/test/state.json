@@ -4,8 +4,15 @@
       "filename": "data-00000-of-00001.arrow"
     }
   ],
-  "_fingerprint": "576de1f4147c19f1",
-  "_format_columns": null,
+  "_fingerprint": "14a4036fd5714d2a",
+  "_format_columns": [
+    "nums",
+    "target",
+    "example_solution",
+    "problem",
+    "level",
+    "task"
+  ],
   "_format_kwargs": {},
   "_format_type": null,
   "_output_all_columns": false,

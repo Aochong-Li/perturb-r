@@ -36,7 +36,7 @@ class CorruptNumbers(OpenLMEngine):
                  max_num_batched_tokens: int = 32768,
                  granularity: int = 20,
                  overwrite: bool = False,
-                 generate_data_only: bool = False,
+                 how: str = "fixed",
                  **kwargs
                  ):
         # Initialize attributes first
@@ -53,9 +53,10 @@ class CorruptNumbers(OpenLMEngine):
         self.top_k = top_k
         self.max_num_batched_tokens = max_num_batched_tokens
         self.granularity = granularity
+        self.how = how
 
         # Create output directory if it doesn't exist
-        self.output_dir = os.path.join(self.results_dir, "corrupt_numbers")
+        self.output_dir = os.path.join(self.results_dir, f"corrupt_numbers_{self.how}_window")
         os.makedirs(self.output_dir, exist_ok=True)
 
         if os.path.exists(os.path.join(self.output_dir, f"{self.nick_name}.pickle")) and not overwrite:
@@ -79,12 +80,9 @@ class CorruptNumbers(OpenLMEngine):
             max_num_batched_tokens=self.max_num_batched_tokens
         )
 
-        if generate_data_only:
-            self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
-        else:
-            super().__init__(config=config)
+        super().__init__(config=config)
 
-        print(f"Start stress testing: {self.nick_name} on corrupted digit")
+        print(f"Start stress testing: {self.nick_name} on Number Corruption")
 
     def load_dataset(self) -> None:
         """Load dataset from pickle file.
@@ -94,8 +92,7 @@ class CorruptNumbers(OpenLMEngine):
         """
         self.dataset_path = os.path.join(self.results_dir, "benchmark", f"{self.nick_name}.pickle")
         self.df = pd.read_pickle(self.dataset_path)
-        self.df = self.df[self.df["correct"] == 1.].reset_index(drop = True)
-        self.df = self.df[(self.df["response"].str.contains("</think>"))]
+        self.df = self.df[(self.df["correct"] == 1.) & (self.df["response"].str.contains("</think>"))].reset_index(drop = True)
         
         if self.question_ids_fname is not None:
             question_ids = json.load(open(os.path.join(self.results_dir, self.question_ids_fname)))
@@ -115,7 +112,7 @@ class CorruptNumbers(OpenLMEngine):
         except Exception as e:
             raise RuntimeError(f"Failed to load dataset from pickle file: {e}")
 
-    def corrupt_thinking(self, how: str = "fixed", unit = 0.2, max_start_pos: float = 1.0, sample_size: int = 4, seed: int = None) -> None:
+    def corrupt_thinking(self, how: str = "fixed", unit = 0.2, max_start_pos: float = 1.0, sample_size: int = 4, seed: int = 42) -> None:
         rng = random.Random(seed)
         self.df["reasoning_chunks"] = self.df["original_response"].apply(self.process_response)
         self.df = self.df.dropna(how='any').reset_index(drop = True)
@@ -192,11 +189,9 @@ class CorruptNumbers(OpenLMEngine):
                                                                                 if how == "fixed" 
                                                                                 else sample_sliding_window,
                                                                                 axis=1)
-        self.df = self.df.explode(columns = ["start_pos", "end_pos",
-                                            "prefix_reasoning", "corrupted_reasoning",
+        self.df = self.df.explode(column=["start_pos", "end_pos","prefix_reasoning", "corrupted_reasoning",
                                             "num_prefix_tokens", "num_corrupted_tokens"],
-                                            ignore_index = True
-                                            )
+                                            ignore_index = True)
         
         self.corrupt_number(rng)
     
@@ -253,14 +248,13 @@ class CorruptNumbers(OpenLMEngine):
             # Case 2: corrupt the reasoning trace before </think>
             self.pre_think_df = self.df.copy()
             self.pre_think_df["prompt"] = template_prefix +  self.pre_think_df["problem"] + \
-                "\n\nThis is user's thought process for this problem: " + \
+                "\n\nThis is user's thinking process for this problem: " + \
                 self.pre_think_df['prefix_reasoning'].replace("<think>", "") + \
                 self.pre_think_df['corrupted_reasoning'].replace("<think>", "") + template_suffix
-            
             self.pre_think_df["type"] = "pre_<think>"
 
+            # Combine results
             self.df = pd.concat([self.post_think_df, self.pre_think_df], axis=0, ignore_index=True)
-            
             self.response = self.generate(prompts=self.df["prompt"]).rename(columns = {'response': 'post_corruption_response'})
             self.response.index = self.df.index
             self.df = pd.concat([self.df, self.response], axis=1)
@@ -312,6 +306,7 @@ if __name__=="__main__":
     parser.add_argument("--tokenizer_name", type=str, required=True, help="Name of the tokenizer to use")
     parser.add_argument("--results_dir", type=str, required=True, help="Name of the dataset to evaluate on")
     parser.add_argument("--question_ids_fname", type=str, required=False, default=None, help="stress test question ids file name")
+    
     parser.add_argument("--tensor_parallel_size", type=int, default=1,
                         help="Number of GPUs for tensor parallelism")
     parser.add_argument("--gpu_memory_utilization", type=float, default=0.4,
@@ -328,22 +323,31 @@ if __name__=="__main__":
                         help="Top-k sampling parameter")
     parser.add_argument("--max_num_batched_tokens", type=int, default=32768,
                         help="Maximum number of tokens to batch")
-    parser.add_argument("--granularity", type=int, default=20,
+    
+    parser.add_argument("--granularity", type=int, default=30,
                         help="Granularity of the reasoning chunks")
+    parser.add_argument("--how", type=str, default="fixed",
+                        help="How to corrupt the reasoning chunks")
     parser.add_argument("--unit", type=float, default=0.25,
                         help="Unit of the reasoning chunks")
-    parser.add_argument("--overwrite", action="store_true",
-                        help="Overwrite existing results")
-    parser.add_argument("--generate_data_only", action="store_true",
-                        help="Generate data only")
+    parser.add_argument("--max_start_pos", type=float, default=1.0,
+                        help="Maximum start position of the reasoning chunks")
+    parser.add_argument("--sample_size", type=int, default=4,
+                        help="Sample size of the reasoning chunks")
+
     parser.add_argument("--seed", type=int, default=42,
                         help="Random seed for reproducibility")
-    
+    parser.add_argument("--overwrite", action="store_true",
+                        help="Overwrite existing results")
     args = parser.parse_args()
     engine = CorruptNumbers(
         **vars(args),
     )
-        
-    engine.corrupt_thinking(how = "fixed", unit = args.unit, seed = args.seed)
-    if not args.generate_data_only:
-        engine.eval()
+    engine.corrupt_thinking(
+        how=args.how,
+        unit=args.unit,
+        max_start_pos=args.max_start_pos,
+        sample_size=args.sample_size,
+        seed=args.seed
+    )
+    engine.eval()
