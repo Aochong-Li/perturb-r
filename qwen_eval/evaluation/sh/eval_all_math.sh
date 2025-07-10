@@ -5,10 +5,12 @@ PROMPT_TYPE=$1
 MODEL_NAME_OR_PATH=$2
 MAX_TOKENS_PER_CALL=$3
 OUTPUT_DIR=$4
+GPU=$5
 
 SPLIT="test"
 NUM_TEST_SAMPLE=-1
 
+export CUDA_VISIBLE_DEVICES=$GPU
     
 DATA_NAMES="amc23x8"
 IFS=',' read -ra DATASETS <<< "$DATA_NAMES"
@@ -80,7 +82,7 @@ else
         --num_test_sample ${NUM_TEST_SAMPLE} \
         --seed 0 \
         --temperature 0.6 \
-        --n_sampling 8 \
+        --n_sampling 3 \
         --top_p 1 \
         --start 0 \
         --end -1 \
