@@ -4,8 +4,8 @@ import pandas as pd
 from core.llm_engine import *
 import argparse
 from datasets import load_dataset, load_from_disk
-from reward_score.math import math_compute_score
-from reward_score.countdown import compute_score as countdown_compute_score
+from reward_score.math import math_compute_score, math_if_answer
+from reward_score.countdown import compute_score as countdown_compute_score, extract_solution as countdown_extract_solution
 
 import numpy as np
 
@@ -36,7 +36,7 @@ class BenchmarkEval(OpenLMEngine):
                  top_k: int = 0,
                  pass_at_k: int = 1,
                  enable_thinking: bool = True,
-                 max_num_batched_tokens: int = None,
+                 max_num_batched_tokens: int = 32768,
                  overwrite: bool = False
                  ):
 
@@ -156,7 +156,7 @@ class BenchmarkEval(OpenLMEngine):
             self.df = pd.concat([self.df, self.response], axis=1)
             
             # Compute correctness scores
-            correctness = []
+            correctness, check_if_answer = [], []
             for idx, row in self.df.iterrows():
                 solution = row['response']
                 if "</think>" in solution:
@@ -166,15 +166,20 @@ class BenchmarkEval(OpenLMEngine):
                 if task == 'math':
                     ground_truth = self.df.loc[idx, 'solution']
                     score = math_compute_score(solution, ground_truth)
+                    if_answer = math_if_answer(solution)
+
                 elif task == 'countdown':
                     numbers = self.df.loc[idx, 'nums']
                     target = self.df.loc[idx, 'target']
                     score = countdown_compute_score(solution, numbers, target)
+                    if_answer = countdown_extract_solution(solution) is not None
 
                 correctness.append(score)
+                check_if_answer.append(if_answer)
             
             # Combine results
             self.df['correct'] = correctness
+            self.df['if_answer'] = check_if_answer
             
             # Save results
             output_path = os.path.join(self.output_dir, f"{self.nick_name}{'_nothinking' if not self.enable_thinking else ''}.pickle")

@@ -15,6 +15,7 @@ from core.llm_engine import *
 
 class RandomThoughtGenerator(OpenLMEngine):
     def __init__(self,
+                 task: str,
                  model_name: str,
                  nick_name: str,
                  tokenizer_name: str,
@@ -31,6 +32,7 @@ class RandomThoughtGenerator(OpenLMEngine):
                  **kwargs
                  ):
         self.nick_name = nick_name
+        self.task = task
         self.results_dir = results_dir
         self.tensor_parallel_size = tensor_parallel_size
         self.dataset_size = dataset_size
@@ -62,25 +64,63 @@ class RandomThoughtGenerator(OpenLMEngine):
         super().__init__(config=config)
 
         print(f"Start generating random thoughts: {self.nick_name}")
+
+        self.output_path = os.path.join(self.output_dir, f"{self.nick_name}.pickle")
+        if os.path.exists(self.output_path):
+            self.existing_data = pd.read_pickle(self.output_path)
+        else:
+            self.existing_data = pd.DataFrame()
     
-    def load_dataset(self) -> None:
+    def generate_prompts(self) -> list:
+        if self.task == "math":
+            topics = [
+                "Algebra", "Calculus", "Applied Mathematics", "Geometry", "Number Theory", "Discrete Mathematics", "Differential Equations",
+                "Abstract Algebra", "Algebraic Expressions", "Algorithms", "Category Theory", "Combinatorics", "Congruences", "Differential Calculus",
+                "Differential Geometry", "Field Theory", "Geodesics", "Graph Theory", "Group Theory", "Hyperbolic Geometry", "Integral Calculus",
+                "Lie Algebras", "Manifolds", "Mathematical Statistics", "Non-Euclidean Geometry", "Ring Theory"
+                ]
+            prompts = []
+            for topic in topics:
+                prompt = self.tokenizer.apply_chat_template(
+
+                    [
+                        {"role": "system", "content": "You are the smartest math student."},
+                        {"role": "user", "content": f"You need to solve a very difficult {topic} problem. You need to think extensively about this problem."}
+                    
+                    ],
+                    tokenize=False,
+                    add_generation_prompt=True
+                )
+                prompts.append(prompt)
+        elif self.task == "countdown":
+            raise NotImplementedError("Countdown task not supported yet")
+        else:
+            raise ValueError(f"Task {self.task} not supported")
+        
+        return prompts
+
+    def count_think_tokens (self, prompt):
+        if "</think>" in prompt:
+            thinking = prompt.split("</think>")[0]
+        else:
+            thinking = prompt
+            
+        return len(self.tokenizer.encode(thinking))
     
-    def generate_random_thoughts(self, min_tokens: int = 2048) -> None:
+    def generate_random_thoughts(self) -> None:
         try:
-            template = self.tokenizer.apply_chat_template(
-                [{"role": "user", "content": "You need to solve this tricky math problem"}], tokenize=False, add_generation_prompt=True
-            )
-            dataset_size_per_template = self.dataset_size // 2
-            prompts = dataset_size_per_template * ["<think>", template + "<think>\n"]
+            prompts = self.generate_prompts()
+            dataset_size_per_template = self.dataset_size // len(prompts)
+            prompts = prompts * dataset_size_per_template
+            
             self.response = self.generate(prompts=prompts).rename(columns = {'response': 'random_thought'})
             self.response["prompt"] = prompts
 
-            self.response["long_cot"] = self.response["random_thought"]. \
-            apply(lambda x: "</think>" in x and len(self.tokenizer.encode(x.split("</think>")[0])) > min_tokens)
+            self.df = pd.concat([self.existing_data[['prompt', 'random_thought']], self.response[['prompt', 'random_thought']]])
+            self.df["think_tokens"] = self.df["random_thought"].apply(lambda x: self.count_think_tokens(x))
 
             # Save results
-            output_path = os.path.join(self.output_dir, f"{self.nick_name}.pickle")
-            self.response.to_pickle(output_path)
+            self.df.to_pickle(self.output_path)
             
         except Exception as e:
             logging.error(f"Error during evaluation: {str(e)}")
@@ -92,6 +132,7 @@ if __name__=="__main__":
     parser.add_argument("--model_name", type=str, required=True, help="Name of the model to use")
     parser.add_argument("--nick_name", type=str, required=True, help="Nickname for the model")
     parser.add_argument("--tokenizer_name", type=str, required=True, help="Name of the tokenizer to use")
+    parser.add_argument("--task", type=str, required=True, help="Name of the task to generate prompts for")
     parser.add_argument("--results_dir", type=str, required=True, help="Name of the dataset to evaluate on")
     parser.add_argument("--dataset_size", type=int, default=1000, help="Number of random thoughts to generate")
     parser.add_argument("--tensor_parallel_size", type=int, default=1,
@@ -100,9 +141,9 @@ if __name__=="__main__":
                         help="Fraction of GPU memory to allocate")
     parser.add_argument("--dtype", type=str, default="bfloat16",
                         help="Data type for model weights (e.g., bfloat16, float16)")
-    parser.add_argument("--max_tokens", type=int, default=16384,
+    parser.add_argument("--max_tokens", type=int, default=8192,
                         help="Maximum number of output tokens")
-    parser.add_argument("--temperature", type=float, default=0.6,
+    parser.add_argument("--temperature", type=float, default=1.0,
                         help="Sampling temperature")
     parser.add_argument("--top_p", type=float, default=1.0,
                         help="Nucleus sampling parameter")

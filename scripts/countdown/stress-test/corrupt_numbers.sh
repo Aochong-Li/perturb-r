@@ -3,8 +3,8 @@ set -ex
 # TODO: before running this script, run the following command to filter the questions
 # bash scripts/filter_questions.sh
 
-export CUDA_VISIBLE_DEVICES=0,1
-MODELS_YAML="config/market_models.yaml"
+export CUDA_VISIBLE_DEVICES=0
+MODELS_YAML="config/local_models.yaml"
 EVAL_DIR="./results/countdown"
 QUESTION_IDS_FNAME="stress_test_problems.json"
 
@@ -18,7 +18,7 @@ for model in data['models']:
 
 # Loop through each model
 echo "$MODELS_INFO" | while IFS=, read -r model_name nick_name; do
-    MAX_TOKENS=8192
+    MAX_TOKENS=12288
 
     echo "Running Corrupt Numbers Stress Test:"
     echo "  Model: ${model_name}, ${nick_name}"
@@ -41,5 +41,4 @@ echo "$MODELS_INFO" | while IFS=, read -r model_name nick_name; do
         --top_k -1 \
         --granularity 30 \
         --unit 0.25 \
-        --overwrite
 done

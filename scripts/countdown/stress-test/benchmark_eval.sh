@@ -1,9 +1,9 @@
 #!/bin/bash
 set -ex
-export CUDA_VISIBLE_DEVICES=0,1
+export CUDA_VISIBLE_DEVICES=4,5,6,7
 
 # Hyperparameters
-DATASET_NAME="countdown"
+DATASET_NAME="countdown_ood_question"
 PASS_AT_K=1
 
 # Paths
@@ -37,6 +37,5 @@ echo "$MODELS_INFO" | while IFS=, read -r model_name nick_name; do
     --top_p 1.0 \
     --top_k -1 \
     --pass_at_k $PASS_AT_K \
-    --overwrite True \
-    --enable_thinking $enable_thinking
+    --overwrite True
 done 

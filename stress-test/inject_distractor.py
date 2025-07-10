@@ -16,16 +16,16 @@ from reward_score.countdown import compute_score as countdown_compute_score
 
 from utils.chunk_r import equal_chunk
 
-class InjectDistractor(OpenLMEngine):  # Fixed typo in class name
+class InjectDistractor(OpenLMEngine):
     def __init__(self,
                  task: str,
                  model_name: str,
                  nick_name: str,
                  tokenizer_name: str,
-                 results_dir: str = None,
-                 question_ids_fname: str = None,
-                 num_distract_candidates: int = 10,
-                 tensor_parallel_size: int = 2,
+                 results_dir: str,
+                 question_ids_fname: str,
+                 num_distract_candidates: int,
+                 tensor_parallel_size: int = 1,
                  gpu_memory_utilization: float = 0.85,
                  dtype: str = "bfloat16",
                  max_tokens: int = 16384,
@@ -82,9 +82,6 @@ class InjectDistractor(OpenLMEngine):  # Fixed typo in class name
 
         # Initialize parent class
         super().__init__(config=config)
-        
-        # Debug Only
-        # self.tokenizer = AutoTokenizer.from_pretrained(self.tokenizer_name)
 
         print(f"Start stress testing: {self.nick_name} on distractor injection")
 
@@ -96,83 +93,84 @@ class InjectDistractor(OpenLMEngine):  # Fixed typo in class name
             num_distract_candidates: Number of rows to use as distractor candidates
         """
         self.dataset_path = os.path.join(self.results_dir, "benchmark", f"{self.nick_name}.pickle")
-        question_ids = json.load(open(os.path.join(self.results_dir, self.question_ids_fname)))
+        self.df = pd.read_pickle(self.dataset_path)
+        self.df = self.df[(self.df["correct"] == 1.) & (self.df["response"].str.contains("</think>"))].reset_index(drop = True)
+        
+        if self.question_ids_fname is not None:
+            question_ids = json.load(open(os.path.join(self.results_dir, self.question_ids_fname)))
+        else:
+            question_ids = None
 
         try:
             if self.task == "math":
-                raise NotImplementedError("Math task is not supported yet")
+                self.compute_score = math_compute_score
+                raise NotImplementedError("Math task is currently not supported yet")
             elif self.task == "countdown":
                 self.compute_score = countdown_compute_score
-                self.df = pd.read_pickle(self.dataset_path)
-                self.df = self.df[self.df['problem'].isin(question_ids)].reset_index(drop = True)
+                self.df = self.df[self.df['problem'].isin(question_ids)].reset_index(drop = True) if question_ids is not None else self.df
                 self.df = self.df.drop(columns = ['correct']).rename(columns = {'response': 'original_response'})
-
-                self.select_distractor()
+            self.select_distractor()
         except Exception as e:
             raise RuntimeError(f"Failed to load dataset from pickle file: {e}")
     
     def select_distractor(self) -> None:
         self.df["reasoning_chunks"] = self.df["original_response"] \
-            .apply(lambda x: x.split("</think>")[0] if "</think>" in x else x) \
+            .apply(lambda x: x.split("</think>")[0]) \
             .apply(lambda x: equal_chunk(x, self.granularity))
         
-        self.distractors = self.df[self.df['reasoning_chunks'].str.len().between(15, 30)] # ensure the distractor reasoning is long enough
+        self.distractors = self.df[self.df['reasoning_chunks'].str.len().between(15, 50)]
         self.distractors = self.distractors.sample(n=self.num_distract_candidates, random_state=42)
         
         self.df = self.df[~self.df.index.isin(self.distractors.index)]
         self.df, self.distractors = self.df.reset_index(drop = True), self.distractors.reset_index(drop = True)
 
     def generate_distract_reasoning_countdown(self, row):
-        prefix_ratio = row["prefix_ratio"]
+        original_ratio = row["original_ratio"]
         distractor_ratio = row["distractor_ratio"]
 
-        prefix_chunks = row["reasoning_chunks"][: int(len(row["reasoning_chunks"]) * prefix_ratio)]
-        prefix_reasoning = "".join(prefix_chunks)
+        original_chunks = row["reasoning_chunks"][: int(len(row["reasoning_chunks"]) * original_ratio)]
+        original_reasoning = "".join(original_chunks)
 
         distractor = self.distractors.sample(n = 1).iloc[0]
         distractor_nums, distractor_target, distractor_chunks = distractor["nums"], distractor["target"], distractor["reasoning_chunks"]
-        
-        # def sample_chunks(chunks, n):
-        #     if n > len(chunks):
-        #         raise ValueError(f"Cannot sample {n} chunks from {len(chunks)} chunks")
-        #     else:
-        #         start = random.randint(0, len(chunks) - n)
-        #         return chunks[start: start + n]
             
         distractor_chunks = distractor_chunks[:int(len(distractor_chunks) * distractor_ratio)]
         distractor_reasoning = "".join(distractor_chunks).replace("<think>", "").strip("\n")
 
-        if "<think>" not in prefix_reasoning:
-            prefix_reasoning = "<think>\n" + prefix_reasoning
+        if "<think>" not in original_reasoning:
+            original_reasoning = "<think>\n" + original_reasoning
         
-        if prefix_ratio > 0.0:
-            prefix_reasoning = prefix_reasoning + "Wait. Let me think again: "
+        if original_ratio > 0.0:
+            original_reasoning = original_reasoning + "Let me think. "
 
-        return distractor_nums, distractor_target, prefix_reasoning + distractor_reasoning
+        return distractor_nums, distractor_target, original_reasoning + distractor_reasoning
 
     def distract(self):
-        """Distract the dataset by adding distractor reasoning to problems."""
         windows = [round(p, 2) for p in np.arange(0, 1, self.unit)]
         distractor_windows = [round(p, 2) for p in np.arange(self.unit, 1 + 1e-5, self.unit)]
 
-        self.df["prefix_ratio"] = len(self.df) * [windows]
-        self.df = self.df.explode("prefix_ratio", ignore_index = True)
+        self.df["original_ratio"] = len(self.df) * [windows]
+        self.df = self.df.explode("original_ratio", ignore_index = True)
         self.df["distractor_ratio"] = len(self.df) * [distractor_windows]
         self.df = self.df.explode("distractor_ratio", ignore_index = True)
 
         if self.task == "countdown":
             distract_func = self.generate_distract_reasoning_countdown
         elif self.task == "math":
-            raise NotImplementedError("Math task is not supported yet")
+            raise NotImplementedError("Math task is currently not supported yet")
         
-        self.df["distract_nums"], self.df["distract_target"], self.df["distract_reasoning"] = zip(*self.df.apply(distract_func, axis=1))
+        self.df["distract_nums"], self.df["distract_target"], self.df["reasoning_w_distractor"] = zip(*self.df.apply(distract_func, axis=1))
         
     def eval(self) -> None:
         try:
             template_prefix, template_suffix = self.tokenizer.apply_chat_template(
-                [{"role": "user", "content": "HANDLE"}], tokenize=False, add_generation_prompt=True).\
-                split("HANDLE")
-            self.df["prompt"] = template_prefix + self.df['problem'] + template_suffix + self.df['distract_reasoning']
+                [{"role": "user", "content": "HANDLE"}],
+                tokenize=False,
+                add_generation_prompt=True
+            ).split("HANDLE")
+            template_suffix = template_suffix.removesuffix("<think>\n")
+            
+            self.df["prompt"] = template_prefix + self.df['problem'] + template_suffix + self.df['reasoning_w_distractor']
             
             self.response = self.generate(prompts=list(self.df['prompt'])).rename(columns = {'response': 'post_distraction_response'})
             self.response.index = self.df.index
@@ -200,15 +198,12 @@ class InjectDistractor(OpenLMEngine):  # Fixed typo in class name
                 original_correctness.append(original_score)
                 distractor_correctness.append(distractor_score)
             
-            # Combine results
             self.df['original_correct'] = original_correctness
             self.df['distractor_correct'] = distractor_correctness
             
-            # Save results
             output_path = os.path.join(self.output_dir, f"{self.nick_name}.pickle")
             self.df.to_pickle(output_path)
             
-            # Log summary statistics
             original_accuracy = sum(original_correctness) / len(original_correctness)
             distractor_accuracy = sum(distractor_correctness) / len(distractor_correctness)
             
@@ -230,6 +225,7 @@ if __name__=="__main__":
                        help="Directory to save evaluation results")
     parser.add_argument("--question_ids_fname", type=str, default="stress_test_problems.json",
                         help="Name of the file containing the question ids")
+
     parser.add_argument("--tensor_parallel_size", type=int, default=2,
                         help="Number of GPUs for tensor parallelism")
     parser.add_argument("--gpu_memory_utilization", type=float, default=0.85,
@@ -244,20 +240,20 @@ if __name__=="__main__":
                         help="Nucleus sampling parameter")
     parser.add_argument("--top_k", type=int, default=0,
                         help="Top-k sampling parameter")
-    parser.add_argument("--num_distract_candidates", type=int, default=5,
-                        help="Number of problems to use as distractors")
-    parser.add_argument("--granularity", type=int, default=35,
+    
+    parser.add_argument("--unit", type=float, default=0.25,
+                        help="Unit of the thinking chunks")                    
+    parser.add_argument("--granularity", type=int, default=30,
                         help="Granularity of the thinking chunks")
+    parser.add_argument("--num_distract_candidates", type=int, default=20,
+                        help="Number of problems to use as distractors")
     parser.add_argument("--overwrite", action="store_true",
                         help="Overwrite existing results")
-    parser.add_argument("--unit", type=float, default=0.25,
-                        help="Unit of the thinking chunks")
 
     args = parser.parse_args()
-
+    
     engine = InjectDistractor(
         **vars(args),
     )
-
-    engine.distract()  # Fixed method name from corrupt() to distract()
+    engine.distract()
     engine.eval()
