@@ -30,5 +30,4 @@ python benchmark_eval.py \
   --top_p                 1.0 \
   --top_k                -1 \
   --pass_at_k             "$PASS_AT_K" \
-  --max_num_batched_tokens 32768 \
-  --overwrite             False
+  --max_num_batched_tokens 32768
