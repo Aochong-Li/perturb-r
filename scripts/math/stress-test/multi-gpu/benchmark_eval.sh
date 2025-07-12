@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -ex
 # USAGE: ./eval_one.sh <gpu_id> <model_name> <nick_name>
 
 GPU_ID=$1
@@ -7,8 +7,8 @@ MODEL=$2
 NICK=$3
 
 # -------- static bits you rarely touch --------
-DATASET_NAME="deepmath"
-PASS_AT_K=1
+DATASET_NAME="allmath"
+SAMPLE_K=8
 DATASET_PATH="./data/${DATASET_NAME}"
 OUTPUT_DIR="./results/${DATASET_NAME}/benchmark"
 # ----------------------------------------------
@@ -22,12 +22,13 @@ python benchmark_eval.py \
   --dataset_name_or_path  "$DATASET_PATH" \
   --split_name            test \
   --output_dir            "$OUTPUT_DIR" \
-  --tensor_parallel_size  1 \
-  --gpu_memory_utilization 0.75 \
+  --tensor_parallel_size  $(echo "$GPU_ID" | awk -F',' '{print NF}') \
+  --gpu_memory_utilization 0.9 \
   --dtype                 bfloat16 \
   --max_tokens            16384 \
-  --temperature           0.6 \
+  --temperature           0.7 \
   --top_p                 1.0 \
   --top_k                -1 \
-  --pass_at_k             "$PASS_AT_K" \
+  --sample_k             "$SAMPLE_K" \
+  --max_num_batched_tokens 8192 \
   --overwrite             True \

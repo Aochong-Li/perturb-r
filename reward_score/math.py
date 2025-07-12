@@ -27,7 +27,7 @@ def math_compute_score(solution_str, ground_truth) -> float:
 
 def math_if_answer(solution_str) -> bool:
     try:
-        solution_string_in_last_boxed = remove_boxed(last_boxed_only_string(solution_str))
+        _ = remove_boxed(last_boxed_only_string(solution_str))
         return True
     except Exception as e:
         return False

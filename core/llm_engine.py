@@ -19,25 +19,23 @@ class ModelConfig:
     tokenizer_name: Optional[str] = None
     max_tokens: int = 512
     max_model_len: int = 32768
-    temperature: float = 0.6
+    temperature: float = 0.7
     n: int = 1
-    # best_of: int = 1
-    top_p: float = 0.95
-    top_k: int = 32
+    top_p: float = 1.0
+    top_k: int = -1
     stop_tokens: Optional[List[str]] = None
     logprobs: Optional[int] = None
     prompt_logprobs: Optional[int] = None
-    gpu_memory_utilization: float = 0.75
+    gpu_memory_utilization: float = 0.9
     dtype: str = 'bfloat16'
     max_num_batched_tokens: Optional[int] = None
     tensor_parallel_size: int = 1
     pipeline_parallel_size: int = 1
-    distributed_executor_backend: str = 'mp'
     trust_remote_code: bool = True
     enable_chunked_prefill: bool = True
     enable_prefix_caching: bool = True
     # Speed optimization parameters
-    enforce_eager: bool = True  # Keep CUDA graphs for speed
+    enforce_eager: bool = True
 
 class OpenLMEngine:
     """
@@ -65,7 +63,6 @@ class OpenLMEngine:
             max_num_batched_tokens=self.config.max_num_batched_tokens,
             tensor_parallel_size=self.config.tensor_parallel_size,
             pipeline_parallel_size=self.config.pipeline_parallel_size,
-            distributed_executor_backend=self.config.distributed_executor_backend,
             trust_remote_code=self.config.trust_remote_code,
             enable_chunked_prefill=self.config.enable_chunked_prefill,
             enable_prefix_caching=self.config.enable_prefix_caching,

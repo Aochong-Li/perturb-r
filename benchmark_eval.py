@@ -31,10 +31,10 @@ class BenchmarkEval(OpenLMEngine):
                  gpu_memory_utilization: float = 0.85,
                  dtype: str = "bfloat16",
                  max_tokens: int = 16384,
-                 temperature: float = 0.6,
+                 temperature: float = 0.7,
                  top_p: float = 1.0,
                  top_k: int = 0,
-                 pass_at_k: int = 1,
+                 sample_k: int = 1,
                  enable_thinking: bool = True,
                  max_num_batched_tokens: int = 32768,
                  overwrite: bool = False
@@ -50,7 +50,7 @@ class BenchmarkEval(OpenLMEngine):
         self.temperature = temperature
         self.top_p = top_p
         self.top_k = top_k
-        self.pass_at_k = pass_at_k
+        self.sample_k = sample_k
         self.enable_thinking = enable_thinking
         self.overwrite = overwrite
         self.max_num_batched_tokens = max_num_batched_tokens
@@ -84,14 +84,14 @@ class BenchmarkEval(OpenLMEngine):
             temperature=self.temperature,
             top_p=self.top_p,
             top_k=self.top_k,
-            n = self.pass_at_k,
+            n = self.sample_k,
             max_num_batched_tokens=self.max_num_batched_tokens
         )
 
         # Initialize parent class
         super().__init__(config=config)
 
-        print(f"Start evaluating {self.nick_name} on dataset: {dataset_name_or_path} | subset: {subset_name} | split: {split_name} | pass@{self.pass_at_k}")
+        print(f"Start evaluating {self.nick_name} on dataset: {dataset_name_or_path} | subset: {subset_name} | split: {split_name} | avg@{self.sample_k}")
 
     def load_dataset(self, dataset_name: str, subset_name: str, split_name: str, sample_size: int) -> None:
         """Load dataset from HuggingFace or local disk.
@@ -150,7 +150,7 @@ class BenchmarkEval(OpenLMEngine):
 
             # Generate model responses
             self.response = self.generate(prompts=prompts)
-            self.df = self.df.loc[np.repeat(self.df.index, self.pass_at_k)].reset_index(drop=True)
+            self.df = self.df.loc[np.repeat(self.df.index, self.sample_k)].reset_index(drop=True)
 
             self.response.index = self.df.index
             self.df = pd.concat([self.df, self.response], axis=1)
@@ -219,13 +219,13 @@ if __name__=="__main__":
                         help="Nucleus sampling parameter")
     parser.add_argument("--top_k", type=int, default=0,
                         help="Top-k sampling parameter")
-    parser.add_argument("--pass_at_k", type=int, default=1,
-                        help="Pass@k parameter")
+    parser.add_argument("--sample_k", type=int, default=1,
+                        help="Sample@k parameter")
     parser.add_argument("--overwrite", type=str2bool, default=False,
                         help="Overwrite existing results")
     parser.add_argument("--enable_thinking", type=str2bool, default=True,
                         help="Enable thinking")
-    parser.add_argument("--max_num_batched_tokens", type=int, default=None,
+    parser.add_argument("--max_num_batched_tokens", type=int, default=32768,
                         help="Maximum number of tokens to batch")
 
     args = parser.parse_args()
