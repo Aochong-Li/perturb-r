@@ -6,8 +6,8 @@ models:
   # - model_name: "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B"
   #   nick_name: "R1-Distill-Qwen-7B"
 
-  - model_name: "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B"
-    nick_name: "R1-Distill-Qwen-32B"
+  # - model_name: "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B"
+  #   nick_name: "R1-Distill-Qwen-32B"
 
   - model_name: "Qwen/QwQ-32B"
     nick_name: "QwQ-32B"
@@ -21,8 +21,9 @@ models:
   #   nick_name: "Qwen3-8B"
   #   gpu_num: 1
 
-  - model_name: "Qwen/Qwen3-30B-A3B"
-    nick_name: "Qwen3-30B-A3B"
+  # - model_name: "Qwen/Qwen3-30B-A3B"
+  #   nick_name: "Qwen3-30B-A3B"
+  #   gpu_num: 8
   
   - model_name: "Qwen/Qwen3-32B"
     nick_name: "Qwen3-32B"
@@ -49,3 +50,10 @@ models:
       
   # - model_name: "zwhe99/DeepMath-Zero-7B"
   #   nick_name: "DeepMath-Zero-7B"
+
+  # TogetherAI
+  # - model_name: "Qwen/Qwen3-30B-A3B"
+  #   nick_name: "Qwen3-30B-A3B"
+  
+  # - model_name: "Qwen/QwQ-32B"
+  #   nick_name: "QwQ-32B"

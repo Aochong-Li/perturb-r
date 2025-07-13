@@ -31,7 +31,7 @@ def main():
     python data/prepare_dataset/allmath.py \
         --output_dir ./data/allmath \
         --dataset_dir ../rlvr/Qwen2.5-Eval/evaluation/data \
-        --datasets aime24 aime25 math500 minerva_math amc23 
+        --datasets aime24 aime25 math500 minerva_math
     """    
     parser = argparse.ArgumentParser(description='Prepare allmath dataset')
     parser.add_argument('--output_dir', default='./data/allmath', 
@@ -50,6 +50,9 @@ def main():
     for dataset_name in dataset_names:
         dataset_path = os.path.join(dataset_dir, f"{dataset_name}/test.jsonl")
         df = pd.DataFrame(list(read_jsonl(dataset_path)))
+        if dataset_name == "math500":
+            # we only keep level 5 question to ensure difficulty
+            df = df[df['level'] == 5]
         df = df.apply(rename_columns, axis=1, args=(dataset_name,))
         datasets.append(df)
 

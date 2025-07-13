@@ -12,18 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # Adapted from https://github.com/EleutherAI/lm-evaluation-harness/blob/main/lm_eval/tasks/hendrycks_math/utils.py
-from math_verify import parse, verify
-
 def math_compute_score(solution_str, ground_truth) -> float:
-
-    math_result =  compute_score(solution_str, ground_truth)
-    
-    gold = parse(solution_str)
-    answer = parse(ground_truth)
-    
-    math_verify_result = 1. if verify(gold, answer) else 0.
-
-    return math_result or math_verify_result
+    return compute_score(solution_str, ground_truth)
 
 def math_if_answer(solution_str) -> bool:
     try:

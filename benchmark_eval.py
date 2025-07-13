@@ -2,12 +2,16 @@ import os
 import pandas as pd
 
 from core.llm_engine import *
+from core.openai_engine import *
+
 import argparse
 from datasets import load_dataset, load_from_disk
-from reward_score.math import math_compute_score, math_if_answer
+from reward_score.qwen_math import eval_dataframe
+from reward_score.math500 import math_if_answer
 from reward_score.countdown import compute_score as countdown_compute_score, extract_solution as countdown_extract_solution
 
 import numpy as np
+from pathlib import Path
 
 def str2bool(v):
     if isinstance(v, bool):
@@ -37,10 +41,12 @@ class BenchmarkEval(OpenLMEngine):
                  sample_k: int = 1,
                  enable_thinking: bool = True,
                  max_num_batched_tokens: int = 32768,
-                 overwrite: bool = False
+                 overwrite: bool = False,
+                 client_name: str = ''
                  ):
 
         # Initialize attributes first
+        self.model_name = model_name
         self.nick_name = nick_name
         self.output_dir = output_dir
         self.tensor_parallel_size = tensor_parallel_size
@@ -54,6 +60,7 @@ class BenchmarkEval(OpenLMEngine):
         self.enable_thinking = enable_thinking
         self.overwrite = overwrite
         self.max_num_batched_tokens = max_num_batched_tokens
+        self.client_name = client_name
 
         # Create output directory if it doesn't exist
         os.makedirs(self.output_dir, exist_ok=True)
@@ -72,24 +79,26 @@ class BenchmarkEval(OpenLMEngine):
             split_name,
             sample_size
         )
-    
-        # Initialize model config
-        config = ModelConfig(
-            model_name=model_name,
-            tokenizer_name=tokenizer_name,
-            tensor_parallel_size=self.tensor_parallel_size,
-            gpu_memory_utilization=self.gpu_memory_utilization,
-            dtype=self.dtype,
-            max_tokens=self.max_tokens,
-            temperature=self.temperature,
-            top_p=self.top_p,
-            top_k=self.top_k,
-            n = self.sample_k,
-            max_num_batched_tokens=self.max_num_batched_tokens
-        )
 
-        # Initialize parent class
-        super().__init__(config=config)
+        if self.client_name == '':
+            # Run locally
+            # Initialize model config
+            config = ModelConfig(
+                model_name=model_name,
+                tokenizer_name=tokenizer_name,
+                tensor_parallel_size=self.tensor_parallel_size,
+                gpu_memory_utilization=self.gpu_memory_utilization,
+                dtype=self.dtype,
+                max_tokens=self.max_tokens,
+                temperature=self.temperature,
+                top_p=self.top_p,
+                top_k=self.top_k,
+                n = self.sample_k,
+                max_num_batched_tokens=self.max_num_batched_tokens
+            )
+
+            # Initialize parent class
+            super().__init__(config=config)
 
         print(f"Start evaluating {self.nick_name} on dataset: {dataset_name_or_path} | subset: {subset_name} | split: {split_name} | avg@{self.sample_k}")
 
@@ -136,62 +145,57 @@ class BenchmarkEval(OpenLMEngine):
         return tokenized_prompt
     
     def eval(self) -> None:
-        """Evaluate the model on the dataset and save results.
+        if self.client_name == '':
+            self.local_eval()
+        else:
+            self.api_eval()
         
-        This method:
-        1. Applies chat template to problems
-        2. Generates model responses
-        3. Computes correctness scores
-        4. Saves results to disk
-        """
-        try:
-            # Apply chat template to problems
-            prompts = self.df['problem'].apply(self.apply_chat_template)
+        self.df = self.df.loc[np.repeat(self.df.index, self.sample_k)].reset_index(drop=True)
+        self.response.index = self.df.index
+        self.df = pd.concat([self.df, self.response], axis=1)
 
-            # Generate model responses
-            self.response = self.generate(prompts=prompts)
-            self.df = self.df.loc[np.repeat(self.df.index, self.sample_k)].reset_index(drop=True)
+        self.eval_df = eval_dataframe(self.df, 'solution', 'response', num_proc=10)
+        
+        # Check if contains answer
+        check_if_answer = []
+        for _, row in self.eval_df.iterrows():
+            solution = row['response']
+            if_answer = math_if_answer(solution)        
+            check_if_answer.append(if_answer)
+        
+        self.eval_df['if_answer'] = check_if_answer
+        
+        # Save results
+        output_path = os.path.join(self.output_dir, f"{self.nick_name}{'_nothinking' if not self.enable_thinking else ''}.pickle")
+        self.eval_df.to_pickle(output_path)
+        
+        # # Log summary statistics
+        accuracy = self.eval_df['is_correct'].mean()
+        print(f"Evaluation complete. Accuracy: {accuracy:.2%}")
 
-            self.response.index = self.df.index
-            self.df = pd.concat([self.df, self.response], axis=1)
-            
-            # Compute correctness scores
-            correctness, check_if_answer = [], []
-            for idx, row in self.df.iterrows():
-                solution = row['response']
-                if "</think>" in solution:
-                    solution = solution.split("</think>")[1]
-                task = row.get('task', 'math')
+    def api_eval(self) -> None:
+        engine = OpenAI_Engine(
+            input_df=self.df,
+            prompt_template="{problem}",
+            developer_message="Please reason step by step, and put your final answer within \\boxed{{}}.",
+            template_map={"problem": "problem"},
+            nick_name=f"benchmark_eval_{self.nick_name}",
+            batch_io_root=str(Path.home()) + "/research/openai_batch_io/reasoning",
+            cache_filepath=self.output_dir + f"/{self.nick_name}_api_responses.pkl",
+            model=self.model_name,
+            client_name=self.client_name,
+            temperature=self.temperature,
+            max_tokens=self.max_tokens,
+            n=self.sample_k,
+        )
+        import pdb; pdb.set_trace()
+        engine.run_model(num_processes=1)
+        self.response = engine.retrieve_outputs(overwrite=self.overwrite)
 
-                if task == 'math':
-                    ground_truth = self.df.loc[idx, 'solution']
-                    score = math_compute_score(solution, ground_truth)
-                    if_answer = math_if_answer(solution)
 
-                elif task == 'countdown':
-                    numbers = self.df.loc[idx, 'nums']
-                    target = self.df.loc[idx, 'target']
-                    score = countdown_compute_score(solution, numbers, target)
-                    if_answer = countdown_extract_solution(solution) is not None
-
-                correctness.append(score)
-                check_if_answer.append(if_answer)
-            
-            # Combine results
-            self.df['correct'] = correctness
-            self.df['if_answer'] = check_if_answer
-            
-            # Save results
-            output_path = os.path.join(self.output_dir, f"{self.nick_name}{'_nothinking' if not self.enable_thinking else ''}.pickle")
-            self.df.to_pickle(output_path)
-         
-            # Log summary statistics
-            accuracy = sum(correctness) / len(correctness)
-            print(f"Evaluation complete. Accuracy: {accuracy:.2%}")
-            
-        except Exception as e:
-            logging.error(f"Error during evaluation: {str(e)}")
-            raise
+    def local_eval(self) -> None:
+        prompts = self.df['problem'].apply(self.apply_chat_template)
+        self.response = self.generate(prompts=prompts)
 
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description="Parse Arguments for Reasoner QA evaluation")
@@ -205,6 +209,7 @@ if __name__=="__main__":
     parser.add_argument("--sample_size", type=int, default=None, help="Number of samples to use (default: None)")
     parser.add_argument("--output_dir", type=str, default='/share/goyal/lio/reasoning/eval/', 
                        help="Directory to save evaluation results")
+
     parser.add_argument("--tensor_parallel_size", type=int, default=2,
                         help="Number of GPUs for tensor parallelism")
     parser.add_argument("--gpu_memory_utilization", type=float, default=0.75,
@@ -221,13 +226,15 @@ if __name__=="__main__":
                         help="Top-k sampling parameter")
     parser.add_argument("--sample_k", type=int, default=1,
                         help="Sample@k parameter")
+
     parser.add_argument("--overwrite", type=str2bool, default=False,
                         help="Overwrite existing results")
     parser.add_argument("--enable_thinking", type=str2bool, default=True,
                         help="Enable thinking")
     parser.add_argument("--max_num_batched_tokens", type=int, default=32768,
                         help="Maximum number of tokens to batch")
-
+    parser.add_argument("--client_name", type=str, default='',
+                        help="Name of the client to use")
     args = parser.parse_args()
 
     engine = BenchmarkEval(

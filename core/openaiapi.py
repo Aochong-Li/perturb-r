@@ -21,7 +21,7 @@ from tqdm import tqdm
 
 
 '''Default client is OpenAI'''
-def create_openai_client(model: str) -> OpenAI:
+def create_client(client_name: str) -> OpenAI:
     """
     Create and return an OpenAI client for the specified model.
 
@@ -31,7 +31,7 @@ def create_openai_client(model: str) -> OpenAI:
     Returns:
         OpenAI: Configured OpenAI client instance.
     """
-    if 'gpt' in model.lower() or 'o1' in model.lower():
+    if client_name == 'openai':
         ORG_ID = os.environ['OPENAI_ORG_ID']
         PROJECT_ID = os.environ['OPENAI_PROJECT_ID']
         OPENAI_API_KEY =  os.environ['OPENAI_API_KEY']
@@ -40,30 +40,37 @@ def create_openai_client(model: str) -> OpenAI:
             organization=ORG_ID,
             project=PROJECT_ID
             )
-    elif 'deepseek' in model.lower():
+    elif client_name == 'deepseek':
         DEEPSEEK_API_KEY = os.environ['DEEPSEEK_API_KEY']
         client = OpenAI(
             api_key=DEEPSEEK_API_KEY,
             base_url="https://api.deepseek.com"
         )
-    else:
+    elif client_name == 'togetherai':
         TOGETHERAI_API_KEY = os.environ['TOGETHERAI_API_KEY']
 
         client = OpenAI(
             api_key=TOGETHERAI_API_KEY,
             base_url = 'https://api.together.xyz/v1'
         )
+    elif client_name == 'openrouter':
+        OPENROUTER_API_KEY = os.environ['OPENROUTER_API_KEY']
+        client = OpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=OPENROUTER_API_KEY
+        )
+
+    else:
+        raise ValueError(f'Invalid client name: {client_name}')
 
     return client
-
-# default client is gpt
-client = create_openai_client('gpt')
 
 '''Model Generate Response'''
 def generate_chat_completion(
     input_prompt: str,
     developer_message: str = 'You are a helpful assistant',
     model: str = 'gpt-4o',
+    client_name: str = '',
     temperature: float = 0.0,
     max_tokens: int = 1024,
     n: int = 1,
@@ -90,7 +97,7 @@ def generate_chat_completion(
     Returns:
         str or List[str]: Generated completion text(s).
     """
-    client = create_openai_client(model)
+    client = create_client(client_name)
     
     # o-series models
     if 'o3' in model or 'o1' in model:
@@ -117,7 +124,7 @@ def generate_chat_completion(
             ]
     else:
         messages = [
-            {"role": "developer", "content": developer_message}, 
+            {"role": "system", "content": developer_message}, 
             {"role": "user", "content": input_prompt}
         ]
         try:
@@ -150,6 +157,7 @@ def process_chunk_wrapper(args: Tuple[List[Dict[str, Any]], int]) -> List[Tuple[
     """
     chunk, chunk_id = args
     model = chunk[0]['body']['model']
+    client_name = chunk[0]['client_name']
     results: List[Tuple[int, Optional[str]]] = []
     for input_object in tqdm(chunk, desc=f"Process-{chunk_id}", position=chunk_id):
         # Extract parameters from the input object
@@ -170,6 +178,7 @@ def process_chunk_wrapper(args: Tuple[List[Dict[str, Any]], int]) -> List[Tuple[
                 input_prompt=input_prompt, 
                 developer_message=developer_message, 
                 model=model,
+                client_name=client_name,
                 temperature=temperature, 
                 max_tokens=max_tokens,
                 n=n, 
@@ -242,7 +251,7 @@ def minibatch_stream_generate_response(input_filepath: str,
     batch_logs = {}
     with open(input_filepath, 'r') as f:
         batch_input = [json.loads(line) for line in f]
-        client = create_openai_client(batch_input[0]['body']['model'])
+        client = create_client(batch_input[0]['body']['model'])
 
         if failed_batch_start is not None and failed_batch_end is not None:
             batch_input = batch_input[failed_batch_start: failed_batch_end]
@@ -344,41 +353,56 @@ def minibatch_stream_retry (batch_log_filepath: str, batch_rate_limit: int = Non
 Utils for OpenAI BatchAPI
 '''
 
-def batch_query_template(input_prompt: str, developer_message: str = 'You are a helpful assistant', model: str = 'gpt-4o', custom_id: str = None,
-                         temperature: float = 0.0, max_tokens: int = 1024, n: int = 1, top_p: float = 1.0, frequency_penalty: float = 0.0,
-                         presence_penalty: float = 0.0, stop: Optional[list[str]] = None):
-    query_template = {"custom_id": custom_id,
-                  "method": "POST",
-                  "url": "/v1/chat/completions",
-                   "body": {"model": model,
-                            "temperature": temperature,
-                            "messages": [{"role": "developer", "content": developer_message},
-                                         {"role": "user", "content": input_prompt}
-                                        ],
-                            "max_tokens": max_tokens,
-                            "n": n,
-                            "top_p": top_p,
-                            "frequency_penalty": frequency_penalty,
-                            "presence_penalty": presence_penalty,
-                            "stop": stop}
-                 }
-    
+def batch_chat_completions_template(
+    input_prompt: str,
+    developer_message: str = 'You are a helpful assistant',
+    model: str = 'gpt-4o',
+    client_name: str = '',
+    custom_id: str = None,
+    temperature: float = 0.0,
+    max_tokens: int = 1024,
+    n: int = 1,
+    top_p: float = 1.0,
+    frequency_penalty: float = 0.0,
+    presence_penalty: float = 0.0,
+    stop: Optional[list[str]] = None
+):
+    query_template = {
+        "custom_id": custom_id,
+        "client_name": client_name,
+        "method": "POST",
+        "url": "/v1/chat/completions",
+        "body": {
+            "model": model,
+            "temperature": temperature,
+            "messages": [
+                {"role": "developer", "content": developer_message},
+                {"role": "user", "content": input_prompt}
+            ],
+            "max_tokens": max_tokens,
+            "n": n,
+            "top_p": top_p,
+            "frequency_penalty": frequency_penalty,
+            "presence_penalty": presence_penalty,
+            "stop": stop
+        }
+    }
     return query_template
 
 def retrieve_batch_output_file_id(batch_log_id: str, model = 'gpt'):
-    client = create_openai_client(model)
+    client = create_client(model)
     batch_log = client.batches.retrieve(batch_log_id)
     
     return batch_log.output_file_id
 
 def check_batch_status(batch_log_id: str, model = 'gpt'):
-    client = create_openai_client(model)
+    client = create_client(model)
     batch_log = client.batches.retrieve(batch_log_id)
     
     return batch_log.status
 
 def check_batch_error(batch_log_id: str, model = 'gpt'):
-    client = create_openai_client(model)
+    client = create_client(model)
     batch_log = client.batches.retrieve(batch_log_id)
 
     if batch_log.status == 'failed':
@@ -388,7 +412,7 @@ def check_batch_error(batch_log_id: str, model = 'gpt'):
         return None
     
 def cancel_batch(batch_log_id: str, model = 'gpt'):
-    client = create_openai_client(model)
+    client = create_client(model)
     client.batches.cancel(batch_log_id)
     
     return f'Batch {batch_log_id} is cancelled'

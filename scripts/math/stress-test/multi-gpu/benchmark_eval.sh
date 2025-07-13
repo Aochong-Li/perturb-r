@@ -30,5 +30,4 @@ python benchmark_eval.py \
   --top_p                 1.0 \
   --top_k                -1 \
   --sample_k             "$SAMPLE_K" \
-  --max_num_batched_tokens 8192 \
-  --overwrite             True \
+  --max_num_batched_tokens 8192

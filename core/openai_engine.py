@@ -3,7 +3,7 @@
 import os
 import json
 
-import openaiapi
+from core import openaiapi
 import pandas as pd
 from tqdm import tqdm
 import logging
@@ -11,27 +11,40 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-
 class OpenAI_Engine():
-    """Engine to prepare prompts, run GPT model batches, and retrieve outputs."""
-
-    def __init__(self, input_df: pd.DataFrame, prompt_template: str, developer_message: str = "",
-                 template_map: dict[str, str] = {}, nick_name: str = 'gpt_engine', batch_io_root: str = '/home/al2644/research/openai_batch_io/reasoning',
-                 cache_filepath: str = None, model: str = 'gpt-4.1', temperature: float = 0.7,
-                 max_tokens: int = 1024, n: int = 1, batch_size: int = 20,
-                 mode: str = 'chat_completions', batch_rate_limit: int = 10):
+    def __init__(
+        self,
+        input_df: pd.DataFrame,
+        prompt_template: str,
+        developer_message: str = "",
+        template_map: dict[str, str] = {},
+        nick_name: str = "gpt_engine",
+        batch_io_root: str = "/home/al2644/research/openai_batch_io/reasoning",
+        cache_filepath: str = "",
+        model: str = "gpt-4.1",
+        client_name: str = "openai",
+        temperature: float = 0.7,
+        top_p: float = 1.0,
+        max_tokens: int = 1024,
+        n: int = 1,
+        batch_size: int = 20,
+        mode: str = "chat_completions",
+        batch_rate_limit: int = 10,
+    ):
         self.input_df = input_df
         self.prompt_template = prompt_template
         self.developer_message = developer_message
         self.template_map = template_map
 
-        root = Path(batch_io_root) if batch_io_root else Path(os.environ['BATCH_IO_ROOT'])
+        root = Path(batch_io_root) if batch_io_root else Path(os.environ.get("BATCH_IO_ROOT", ""))
         self.input_filepath = root / f"{nick_name}_input.jsonl"
         self.batch_log_filepath = root / f"{nick_name}_batch_log.json"
-        self.cache_filepath = cache_filepath
+        self.cache_filepath = cache_filepath if cache_filepath else root / f"{nick_name}_cache.pkl"
 
         self.model = model
+        self.client_name = client_name
         self.temperature = temperature
+        self.top_p = top_p
         self.max_tokens = max_tokens
         self.n = n
         self.batch_size = batch_size
@@ -53,14 +66,16 @@ class OpenAI_Engine():
                 }
             input_prompt = self.prompt_template.format(**properties)
 
-            query = openaiapi.batch_query_template(
+            query = openaiapi.batch_chat_completions_template(
                 input_prompt=input_prompt,
                 developer_message=self.developer_message,
                 model=self.model,
+                client_name=self.client_name,
                 custom_id=f'idx_{idx}',
                 temperature=self.temperature,
                 max_tokens=self.max_tokens,
-                n=self.n
+                n=self.n,
+                top_p=self.top_p
             )
 
             openaiapi.cache_batch_query(self.input_filepath, query)
