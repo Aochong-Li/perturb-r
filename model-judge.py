@@ -58,7 +58,7 @@ class ModelJudge():
         self.is_correct_col = is_correct_col
         self.output_dir = output_dir
         self.nick_name = nick_name
-
+        
         os.makedirs(self.output_dir, exist_ok=True)
 
     def extract_pred(self, row):
@@ -184,7 +184,11 @@ if __name__ == "__main__":
                         print(f"Skipping {nick_name} because it already exists")
                         finished.append(nick_name)
                         continue
-
+                    
+                    if "pred" not in input_df.columns:
+                        print(f"Skipping {nick_name} because it doesn't have pred column")
+                        continue
+                    
                     judge_engine = ModelJudge(
                         input_df=input_df,
                         problem_col="problem",
