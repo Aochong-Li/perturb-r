@@ -180,7 +180,7 @@ class BenchmarkEval(OpenLMEngine):
         engine = OpenAI_Engine(
             input_df=self.df,
             prompt_template="{problem}",
-            developer_message="Please reason step by step, and put your final answer within \\boxed{{}}.",
+            developer_message="",
             template_map={"problem": "problem"},
             nick_name=f"benchmark_eval_{self.nick_name}",
             batch_io_root=str(Path.home()) + "/research/openai_batch_io/reasoning",
@@ -191,10 +191,9 @@ class BenchmarkEval(OpenLMEngine):
             max_tokens=self.max_tokens,
             n=self.sample_k,
         )
-
-        engine.run_model(num_processes=1)
+        engine.run_model(overwrite=self.overwrite, num_processes=1)
         self.response = engine.retrieve_outputs(overwrite=self.overwrite)
-
+        self.response = self.response.set_index('idx').explode(['response']).reset_index(drop=True)
 
     def local_eval(self) -> None:
         prompts = self.df['problem'].apply(self.apply_chat_template)

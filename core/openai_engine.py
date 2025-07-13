@@ -110,10 +110,10 @@ class OpenAI_Engine():
 
     def retrieve_outputs(self, overwrite=False, cancel_in_progress_jobs: bool = False):
         """Retrieve generated outputs from cache or batch logs."""
-        if self.cache_filepath and Path(self.cache_filepath).exists() and not overwrite:
+        if self.cache_filepath and Path(self.cache_filepath).exists() and self.mode == 'chat_completions':
             logger.info(f'Results are retrieved from {self.cache_filepath}')
             output_df = pd.read_pickle(self.cache_filepath)
-        else:
+        elif self.mode != 'chat_completions' and overwrite:
             with open(self.batch_log_filepath) as f:
                 batch_logs = json.load(f)
             output_dict = {}
