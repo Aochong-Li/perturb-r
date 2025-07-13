@@ -4,6 +4,7 @@ from pathlib import Path
 import argparse
 import re
 import os
+import time
 
 PROMPT_TEMPLATE = """### System Prompt
 You are an experienced examiner who evaluates whether a student's answer to a given question is correct. 
@@ -57,6 +58,8 @@ class ModelJudge():
         self.is_correct_col = is_correct_col
         self.output_dir = output_dir
         self.nick_name = nick_name
+
+        os.makedirs(self.output_dir, exist_ok=True)
 
     def extract_pred(self, row):
         pred = row[self.pred_col]
@@ -165,26 +168,37 @@ if __name__ == "__main__":
         judge_engine.run(overwrite=args.overwrite)
         
     elif args.input_dir:
-        for fname in os.listdir(args.input_dir):
-            if fname.endswith(".pickle"):
-                input_df = pd.read_pickle(os.path.join(args.input_dir, fname))
-                nick_name = fname.replace(".pickle", "")
-                
-                if not args.overwrite and os.path.exists(os.path.join(args.output_dir, f"{nick_name}_model_judge.pickle")):
-                    print(f"Skipping {nick_name} because it already exists")
-                    continue
+        finished = []
+        time_limit = 10 * 60 * 60 # 10 hours
+        start_time = time.time()
+        while True:
+            if time.time() - start_time > time_limit:
+                break
 
-                judge_engine = ModelJudge(
-                    input_df=input_df,
-                    problem_col="problem",
-                    solution_col="solution",
-                    response_col="response",
-                    pred_col="pred",
-                    output_dir=args.output_dir,
-                    nick_name=nick_name,
-                    how=args.how,
-                )
-                print(f"Starting to judge {nick_name} with {args.how} mode")
-                judge_engine.run(overwrite=args.overwrite)
-                print(f"Finished judging {nick_name}")
-                
+            for fname in os.listdir(args.input_dir):
+                if fname.endswith(".pickle") and fname not in finished:
+                    input_df = pd.read_pickle(os.path.join(args.input_dir, fname))
+                    nick_name = fname.replace(".pickle", "")
+                    
+                    if not args.overwrite and os.path.exists(os.path.join(args.output_dir, f"{nick_name}_model_judge.pickle")):
+                        print(f"Skipping {nick_name} because it already exists")
+                        finished.append(nick_name)
+                        continue
+
+                    judge_engine = ModelJudge(
+                        input_df=input_df,
+                        problem_col="problem",
+                        solution_col="solution",
+                        response_col="response",
+                        pred_col="pred",
+                        output_dir=args.output_dir,
+                        nick_name=nick_name,
+                        how=args.how,
+                    )
+                    print(f"Starting to judge {nick_name} with {args.how} mode")
+                    judge_engine.run(overwrite=args.overwrite)
+                    print(f"Finished judging {nick_name}")
+            
+            print(f"Waiting for 60 seconds before checking again")
+            time.sleep(60)
+                    
