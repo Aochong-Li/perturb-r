@@ -1,6 +1,6 @@
 #!/bin/bash
 set -ex
-export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
+export CUDA_VISIBLE_DEVICES=0,1
 
 # -------- static bits you rarely touch --------
 MODELS_YAML="config/market_models.yaml"
@@ -29,15 +29,15 @@ echo "$MODELS_INFO" | while IFS=, read -r model_name nick_name; do
     --tokenizer_name "$model_name" \
     --dataset_name_or_path $DATASET_PATH \
     --split_name "test" \
-    --sample_size 10 \
     --output_dir $OUTPUT_DIR \
-    --tensor_parallel_size 8 \
-    --gpu_memory_utilization 0.85 \
+    --tensor_parallel_size 2 \
+    --gpu_memory_utilization 0.9 \
     --dtype bfloat16 \
     --max_tokens 32768 \
     --temperature 0.6 \
     --top_p 0.95 \
-    --top_k 20 \
+    --top_k -1 \
     --sample_k $SAMPLE_K \
-    --client_name "togetherai"
+    --overwrite True
+
 done 

@@ -1,6 +1,6 @@
 import os
 import pandas as pd
-
+from transformers import AutoModelForCausalLM
 from core.llm_engine import *
 from core.openai_engine import *
 
@@ -96,7 +96,8 @@ class BenchmarkEval(OpenLMEngine):
                 n = self.sample_k,
                 max_num_batched_tokens=self.max_num_batched_tokens
             )
-
+            # Download model weights if not already downloaded
+            _ = AutoModelForCausalLM.from_pretrained(self.model_name)
             # Initialize parent class
             super().__init__(config=config)
 
@@ -154,6 +155,11 @@ class BenchmarkEval(OpenLMEngine):
         self.response.index = self.df.index
         self.df = pd.concat([self.df, self.response], axis=1)
 
+        # Save results
+        output_path = os.path.join(self.output_dir, f"{self.nick_name}{'_nothinking' if not self.enable_thinking else ''}.pickle")
+        self.df.to_pickle(output_path)
+
+        # Evaluate results
         self.eval_df = eval_dataframe(self.df, 'solution', 'response', num_proc=10)
         
         # Check if contains answer
@@ -164,9 +170,6 @@ class BenchmarkEval(OpenLMEngine):
             check_if_answer.append(if_answer)
         
         self.eval_df['if_answer'] = check_if_answer
-        
-        # Save results
-        output_path = os.path.join(self.output_dir, f"{self.nick_name}{'_nothinking' if not self.enable_thinking else ''}.pickle")
         self.eval_df.to_pickle(output_path)
         
         # # Log summary statistics
@@ -188,7 +191,7 @@ class BenchmarkEval(OpenLMEngine):
             max_tokens=self.max_tokens,
             n=self.sample_k,
         )
-        import pdb; pdb.set_trace()
+
         engine.run_model(num_processes=1)
         self.response = engine.retrieve_outputs(overwrite=self.overwrite)
 
