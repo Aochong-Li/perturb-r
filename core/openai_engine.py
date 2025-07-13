@@ -21,7 +21,7 @@ class OpenAI_Engine():
         nick_name: str = "gpt_engine",
         batch_io_root: str = "/home/al2644/research/openai_batch_io/reasoning",
         cache_filepath: str = "",
-        model: str = "gpt-4.1",
+        model: str = "deepseek-chat",
         client_name: str = "openai",
         temperature: float = 0.7,
         top_p: float = 1.0,
@@ -39,7 +39,7 @@ class OpenAI_Engine():
         root = Path(batch_io_root) if batch_io_root else Path(os.environ.get("BATCH_IO_ROOT", ""))
         self.input_filepath = root / f"{nick_name}_input.jsonl"
         self.batch_log_filepath = root / f"{nick_name}_batch_log.json"
-        self.cache_filepath = cache_filepath if cache_filepath else root / f"{nick_name}_cache.pkl"
+        self.cache_filepath = cache_filepath if cache_filepath else root / f"{nick_name}_cache.pickle"
 
         self.model = model
         self.client_name = client_name
