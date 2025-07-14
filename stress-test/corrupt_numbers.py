@@ -12,7 +12,7 @@ import argparse
 
 from core.llm_engine import *
 
-from reward_score.math import compute_score as math_compute_score
+from reward_score.qwen_math import parse_response_dataframe
 from reward_score.countdown import compute_score as countdown_compute_score, extract_solution
 
 from utils.chunk_r import equal_chunk

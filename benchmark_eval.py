@@ -6,8 +6,8 @@ from core.openai_engine import *
 
 import argparse
 from datasets import load_dataset, load_from_disk
-from reward_score.qwen_math import eval_dataframe
-from reward_score.math500 import math_if_answer
+from reward_score.qwen_math import parse_response_dataframe
+from reward_score.math500 import math_if_boxed
 from reward_score.countdown import compute_score as countdown_compute_score, extract_solution as countdown_extract_solution
 
 import numpy as np
@@ -160,20 +160,20 @@ class BenchmarkEval(OpenLMEngine):
         self.df.to_pickle(output_path)
 
         # Evaluate results
-        self.eval_df = eval_dataframe(self.df, 'solution', 'response', num_proc=10)
+        self.result_df = parse_response_dataframe(self.df, 'solution', 'response')
         
         # Check if contains answer
-        check_if_answer = []
-        for _, row in self.eval_df.iterrows():
+        check_if_boxed = []
+        for _, row in self.result_df.iterrows():
             solution = row['response']
-            if_answer = math_if_answer(solution)        
-            check_if_answer.append(if_answer)
+            if_boxed = math_if_boxed(solution)        
+            check_if_boxed.append(if_boxed)
         
-        self.eval_df['if_answer'] = check_if_answer
-        self.eval_df.to_pickle(output_path)
+        self.result_df['if_boxed'] = check_if_boxed
+        self.result_df.to_pickle(output_path)
         
         # # Log summary statistics
-        accuracy = self.eval_df['is_correct'].mean()
+        accuracy = self.result_df['is_correct'].mean()
         print(f"Evaluation complete. Accuracy: {accuracy:.2%}")
 
     def api_eval(self) -> None:
@@ -191,7 +191,7 @@ class BenchmarkEval(OpenLMEngine):
             max_tokens=self.max_tokens,
             n=self.sample_k,
         )
-        engine.run_model(overwrite=self.overwrite, num_processes=1)
+        engine.run_model(overwrite=self.overwrite)
         self.response = engine.retrieve_outputs(overwrite=self.overwrite)
         self.response = self.response.set_index('idx').explode(['response']).reset_index(drop=True)
 
@@ -238,7 +238,7 @@ if __name__=="__main__":
     parser.add_argument("--client_name", type=str, default='',
                         help="Name of the client to use")
     args = parser.parse_args()
-
+    
     engine = BenchmarkEval(
         **vars(args),
     )

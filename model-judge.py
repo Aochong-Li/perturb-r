@@ -183,6 +183,13 @@ if __name__ == "__main__":
                     if not args.overwrite and os.path.exists(os.path.join(args.output_dir, f"{nick_name}_model_judge.pickle")):
                         print(f"Skipping {nick_name} because it already exists")
                         finished.append(nick_name)
+
+                        # This is just a hack to merge the results of the previous run
+                        if "model_is_correct" not in input_df.columns:
+                            response_df = pd.read_pickle(os.path.join(args.output_dir, f"{nick_name}_model_judge.pickle"))
+                            input_df = input_df.merge(response_df, left_index=True, right_index=True)
+                            input_df.to_pickle(os.path.join(args.input_dir, fname))
+                            print("Merged the results of the previous run")    
                         continue
                     
                     if "pred" not in input_df.columns:
@@ -201,6 +208,7 @@ if __name__ == "__main__":
                     )
                     print(f"Starting to judge {nick_name} with {args.how} mode")
                     judge_engine.run(overwrite=args.overwrite)
+                    judge_engine.merge()
                     print(f"Finished judging {nick_name}")
             
             print(f"Waiting for 60 seconds before checking again")

@@ -15,7 +15,7 @@ class OpenAI_Engine():
     def __init__(
         self,
         input_df: pd.DataFrame,
-        prompt_template: str,
+        prompt_template: str = "",
         developer_message: str = "",
         template_map: dict[str, str] = {},
         nick_name: str = "gpt_engine",
@@ -51,7 +51,7 @@ class OpenAI_Engine():
         self.mode = mode
         self.batch_rate_limit = batch_rate_limit
 
-    def prepare_batch_input(self):
+    def prepare_chat_completions_input(self):
         """Prepare batch input file with prompts formatted from the input dataframe."""
         assert self.input_filepath is not None, 'input_filepath is required'
 
@@ -82,38 +82,73 @@ class OpenAI_Engine():
 
         logger.info(f'Batch input prepared and stored at {self.input_filepath}')
 
-    def run_model(self, overwrite=False, num_processes=20):
+    def prepare_completions_input(self):
+        """Prepare batch input file with prompts formatted from the input dataframe."""
+        assert self.input_filepath is not None, 'input_filepath is required'
+
+        if self.input_filepath.exists():
+            self.input_filepath.unlink()
+
+        for idx, row in tqdm(self.input_df.iterrows(), total=len(self.input_df)):
+            input_prompt = row['prompt']
+
+            query = openaiapi.batch_completions_template(
+                input_prompt=input_prompt,
+                model=self.model,
+                client_name=self.client_name,
+                custom_id=f'idx_{idx}',
+                temperature=self.temperature,
+                max_tokens=self.max_tokens,
+                n=self.n,
+                top_p=self.top_p
+            )
+
+            openaiapi.cache_batch_query(self.input_filepath, query)
+
+        logger.info(f'Batch input prepared and stored at {self.input_filepath}')
+
+    def run_model(self, overwrite=False, num_workers=20):
         """Run the GPT model batch generation, optionally overwriting existing results."""
         if self.model == 'gpt-4o' and self.batch_rate_limit is None:
             self.batch_rate_limit = 20
 
         if self.mode == 'chat_completions' or not self.batch_log_filepath.exists():
             '''Prepare batch input'''
-            self.prepare_batch_input()
+            self.prepare_chat_completions_input()
 
-            '''Generate'''
             if self.mode == 'chat_completions':
                 if overwrite and Path(self.cache_filepath).exists():
                     Path(self.cache_filepath).unlink()
                 openaiapi.generate_parallel_completions(input_filepath=self.input_filepath,
                                                     cache_filepath=self.cache_filepath,
-                                                    num_processes=num_processes)
+                                                    num_workers=num_workers,
+                                                    func_name="chat_completions"
+                                                    )
                 logger.info(f'Results are generated and stored at {self.cache_filepath}')
 
-            else:
+            elif self.mode == 'batch_chat_completions':
                 openaiapi.minibatch_stream_generate_response(input_filepath=self.input_filepath,
                                                              batch_log_filepath=self.batch_log_filepath,
                                                              batch_size=self.batch_size,
                                                              batch_rate_limit=self.batch_rate_limit)
+        elif self.mode == 'completions':
+            self.prepare_completions_input()
+            openaiapi.generate_parallel_completions(input_filepath=self.input_filepath,
+                                                    cache_filepath=self.cache_filepath,
+                                                    num_workers=num_workers,
+                                                    func_name="completions"
+                                                    )
         
         logger.info(f'Results are generated and check {self.batch_log_filepath}')
 
     def retrieve_outputs(self, overwrite=False, cancel_in_progress_jobs: bool = False):
         """Retrieve generated outputs from cache or batch logs."""
-        if self.cache_filepath and Path(self.cache_filepath).exists() and self.mode == 'chat_completions':
+        if self.cache_filepath and Path(self.cache_filepath).exists() \
+            and (self.mode == 'chat_completions' or self.mode == 'batch_chat_completions'):
             logger.info(f'Results are retrieved from {self.cache_filepath}')
             output_df = pd.read_pickle(self.cache_filepath)
-        elif self.mode != 'chat_completions' and overwrite:
+        
+        elif self.mode == 'batch_chat_completions' and overwrite:
             with open(self.batch_log_filepath) as f:
                 batch_logs = json.load(f)
             output_dict = {}

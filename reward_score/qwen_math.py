@@ -13,37 +13,42 @@ def eval_sample(args) -> tuple[int, Any]:
     
     return idx, math_equal(extracted_answer, extracted_gt)
 
-def eval_dataframe(input_df: pd.DataFrame, gt_col: str, response_col: str, num_proc: int = 10) -> pd.DataFrame:
+def parse_response_dataframe(input_df: pd.DataFrame, gt_col: str, response_col: str) -> pd.DataFrame:
     df = input_df.copy()
 
     df['pred'] = df[response_col].apply(lambda x: x.split('</think>')[-1].strip() if '</think>' in x else x)
     df['gt'] = df[gt_col]
-    
-    params = [(idx, str(row['gt']), str(row['pred']), str(row['source'])) for idx, row in df.iterrows()]
-
-    from tqdm import tqdm
-
-    results = []
-    with ProcessPool(max_workers=num_proc) as pool:
-        future = pool.map(eval_sample, params, timeout=120)
-        iterator = future.result()
-
-        for i in tqdm(range(len(params)), desc="Evaluating"):
-            try:
-                result = next(iterator)
-                results.append(result)
-            except TimeoutError:
-                idx = params[i][0]
-                print(f"Timeout for sample {idx}")
-                results.append((idx, False))
-            except Exception as e:
-                idx = params[i][0]
-                print(f"Error for sample {idx}: {e}")
-                results.append((idx, False))
-
-    # results is a list of (idx, bool)
-    results_df = pd.DataFrame(results, columns=['idx', 'is_correct'])
-    results_df.set_index('idx', inplace=True)
-    df = df.merge(results_df, left_index=True, right_index=True)
-
     return df
+    
+    '''
+    math_equal is not a reliable evaluation. so we only extract answer and ground truth from the response.
+    '''
+
+    # params = [(idx, str(row['gt']), str(row['pred']), str(row['source'])) for idx, row in df.iterrows()]
+
+    # from tqdm import tqdm
+
+    # results = []
+    # with ProcessPool(max_workers=num_proc) as pool:
+    #     future = pool.map(eval_sample, params, timeout=120)
+    #     iterator = future.result()
+
+    #     for i in tqdm(range(len(params)), desc="Evaluating"):
+    #         try:
+    #             result = next(iterator)
+    #             results.append(result)
+    #         except TimeoutError:
+    #             idx = params[i][0]
+    #             print(f"Timeout for sample {idx}")
+    #             results.append((idx, False))
+    #         except Exception as e:
+    #             idx = params[i][0]
+    #             print(f"Error for sample {idx}: {e}")
+    #             results.append((idx, False))
+
+    # # results is a list of (idx, bool)
+    # results_df = pd.DataFrame(results, columns=['idx', 'is_correct'])
+    # results_df.set_index('idx', inplace=True)
+    # df = df.merge(results_df, left_index=True, right_index=True)
+
+    # return df

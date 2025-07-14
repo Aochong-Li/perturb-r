@@ -15,7 +15,7 @@
 def math_compute_score(solution_str, ground_truth) -> float:
     return compute_score(solution_str, ground_truth)
 
-def math_if_answer(solution_str) -> bool:
+def math_if_boxed(solution_str) -> bool:
     try:
         _ = remove_boxed(last_boxed_only_string(solution_str))
         return True

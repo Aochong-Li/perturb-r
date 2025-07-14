@@ -6,240 +6,293 @@ Provides functions for single and parallel chat completions with support for con
 rate limiting, and efficient client reuse.
 
 Author: Aochong Oliver Li
-Date: 2025-04-22
+Date: 2025-07-14
 """
 
-import json
-import os
-import time
-from concurrent.futures import ProcessPoolExecutor, as_completed
-from typing import Any, Dict, List, Optional, Tuple, Union
+from __future__ import annotations
+
+import json, logging, math, os, random, time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from functools import lru_cache
+from typing import Any, Dict, List, Optional, Tuple, Callable
 
 import pandas as pd
-from openai import OpenAI
+from openai import (OpenAI, APIError, APIConnectionError, RateLimitError,
+                    Timeout)
 from tqdm import tqdm
 
+# ---------------------------------------------------------------------------
+# logging setup (inherits root config from caller if present)
+# ---------------------------------------------------------------------------
+logger = logging.getLogger(__name__)
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+    logger.addHandler(handler)
+logger.setLevel(logging.INFO)
 
-'''Default client is OpenAI'''
+# ---------------------------------------------------------------------------
+# Provider registry – add new providers in one place
+# ---------------------------------------------------------------------------
+PROVIDERS: Dict[str, Dict[str, Any]] = {
+    "openai":     {"env": "OPENAI_API_KEY",     "base_url": None},
+    "deepseek":   {"env": "DEEPSEEK_API_KEY",   "base_url": "https://api.deepseek.com"},
+    "togetherai": {"env": "TOGETHERAI_API_KEY", "base_url": "https://api.together.xyz/v1"},
+    "openrouter": {"env": "OPENROUTER_API_KEY", "base_url": "https://openrouter.ai/api/v1"},
+    "deepinfra":  {"env": "DEEPINFRA_API_KEY",  "base_url": "https://api.deepinfra.com/v1/openai"},
+}
+
+RETRYABLE = (RateLimitError, APIError, APIConnectionError, Timeout)
+
+# ---------------------------------------------------------------------------
+# Client factory – cached per‑process, per provider
+# ---------------------------------------------------------------------------
+@lru_cache(maxsize=None)
 def create_client(client_name: str) -> OpenAI:
-    """
-    Create and return an OpenAI client for the specified model.
-
-    Args:
-        model (str): The model identifier (e.g., 'gpt-4o', 'deepseek', 'togetherai').
-
-    Returns:
-        OpenAI: Configured OpenAI client instance.
-    """
-    if client_name == 'openai':
-        ORG_ID = os.environ['OPENAI_ORG_ID']
-        PROJECT_ID = os.environ['OPENAI_PROJECT_ID']
-        OPENAI_API_KEY =  os.environ['OPENAI_API_KEY']
-        client = OpenAI(
-            api_key=OPENAI_API_KEY,
-            organization=ORG_ID,
-            project=PROJECT_ID
-            )
-    elif client_name == 'deepseek':
-        DEEPSEEK_API_KEY = os.environ['DEEPSEEK_API_KEY']
-        client = OpenAI(
-            api_key=DEEPSEEK_API_KEY,
-            base_url="https://api.deepseek.com"
+    cfg = PROVIDERS.get(client_name)
+    if cfg is None:
+        raise ValueError(f"Unknown provider '{client_name}'.")
+    api_key = os.getenv(cfg["env"])
+    if not api_key:
+        raise RuntimeError(f"Environment variable {cfg['env']} not set.")
+    kwargs: Dict[str, Any] = {"api_key": api_key}
+    if cfg["base_url"]:
+        kwargs["base_url"] = cfg["base_url"]
+    if client_name == "openai":
+        kwargs.update(
+            organization=os.getenv("OPENAI_ORG_ID"),
+            project=os.getenv("OPENAI_PROJECT_ID"),
         )
-    elif client_name == 'togetherai':
-        TOGETHERAI_API_KEY = os.environ['TOGETHERAI_API_KEY']
+    return OpenAI(**kwargs)
 
-        client = OpenAI(
-            api_key=TOGETHERAI_API_KEY,
-            base_url = 'https://api.together.xyz/v1'
-        )
-    elif client_name == 'openrouter':
-        OPENROUTER_API_KEY = os.environ['OPENROUTER_API_KEY']
-        client = OpenAI(
-            base_url="https://openrouter.ai/api/v1",
-            api_key=OPENROUTER_API_KEY
-        )
-
-    else:
-        raise ValueError(f'Invalid client name: {client_name}')
-
-    return client
-
-'''Model Generate Response'''
-def generate_chat_completion(
+# ---------------------------------------------------------------------------
+# Wrapper for chat completions and completions
+# ---------------------------------------------------------------------------
+def generate_chat_completions(
+    *,
     input_prompt: str,
-    developer_message: str = 'You are a helpful assistant',
-    model: str = 'gpt-4o',
-    client_name: str = '',
-    temperature: float = 0.0,
-    max_tokens: int = 1024,
+    developer_message: str = "You are a helpful assistant",
+    model: str = "gpt-4o",
+    client_name: str = "openai",
+    temperature: float = 0.6,
+    max_tokens: int = 4096,
     n: int = 1,
     top_p: float = 1.0,
     frequency_penalty: float = 0.0,
     presence_penalty: float = 0.0,
-    stop: Optional[list[str]] = None
-) -> Union[str, List[str]]:
-    """
-    Generate a single or multiple chat completion(s) using the specified model.
+    stop: Optional[List[str]] = None,
+    max_attempts: int = 3,
+) -> Tuple[Optional[List[str]], List[str], int]:
+    client = create_client(client_name)
+    messages = [
+        {"role": "system", "content": developer_message},
+        {"role": "user", "content": input_prompt},
+    ]
 
-    Args:
-        input_prompt (str): The user prompt.
-        developer_message (str): System or developer message for the model.
-        model (str): Model identifier.
-        temperature (float): Sampling temperature.
-        max_tokens (int): Maximum tokens in the response.
-        n (int): Number of completions to generate.
-        top_p (float): Nucleus sampling parameter.
-        frequency_penalty (float): Frequency penalty.
-        presence_penalty (float): Presence penalty.
-        stop (list[str], optional): Sequence(s) where the API will stop generating further tokens.
+    errors: List[str] = []
+    for attempt in range(1, max_attempts + 1):
+        try:
+            kwargs: Dict[str, Any] = dict(model=model, messages=messages, n=n)
+            if model == "deepseek-reasoner":
+                kwargs["max_completion_tokens"] = max_tokens
+            else:
+                kwargs.update(
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    top_p=top_p,
+                    frequency_penalty=frequency_penalty,
+                    presence_penalty=presence_penalty,
+                    stop=stop,
+                )
+            resp = client.chat.completions.create(**kwargs)
+            if model == "deepseek-reasoner":
+                return [
+                    f"{c.message.reasoning_content}\n</think>\n{c.message.content}" for c in resp.choices
+                ], errors, attempt
+            return [c.message.content for c in resp.choices], errors, attempt
+        except RETRYABLE as exc:
+            errors.append(repr(exc))
+            if attempt == max_attempts:
+                logger.error("%s – final failure", exc)
+                return None, errors, attempt
+            # header‑aware back‑off
+            hdr_delay = None
+            if hasattr(exc, "response") and exc.response is not None:
+                retry_after = exc.response.headers.get("Retry-After")
+                if retry_after:
+                    try:
+                        hdr_delay = float(retry_after)
+                    except ValueError:
+                        hdr_delay = None
+            delay = hdr_delay if hdr_delay else min(30, 2 ** (attempt - 1)) * random.uniform(0.8, 1.2)
+            logger.warning("%s – retry %d/%d in %.1fs", exc, attempt, max_attempts, delay)
+            time.sleep(delay)
+        except Exception as exc:
+            errors.append(repr(exc))
+            logger.error("Non‑retryable error: %s", exc)
+            return None, errors, attempt
 
-    Returns:
-        str or List[str]: Generated completion text(s).
-    """
+    return None, errors, max_attempts
+
+def generate_completions(
+    *,
+    input_prompt: str,
+    model: str = "gpt-4o",
+    client_name: str = "openai",
+    temperature: float = 0.6,
+    max_tokens: int = 4096,
+    n: int = 1,
+    top_p: float = 1.0,
+    frequency_penalty: float = 0.0,
+    presence_penalty: float = 0.0,
+    stop: Optional[List[str]] = None,
+    max_attempts: int = 3,
+) -> Tuple[Optional[List[str]], List[str], int]:
     client = create_client(client_name)
     
-    # o-series models
-    if 'o3' in model or 'o1' in model:
-        raise NotImplementedError
-    # gpt models or open source models on TogetherAI
-    elif model == 'deepseek-reasoner':
-        messages = [
-            {"role": "system", "content": developer_message}, 
-            {"role": "user", "content": input_prompt}
-        ]
-        
-        response = client.chat.completions.create(
-            model=model,
-            messages=messages,
-            max_completion_tokens=max_tokens
+    errors: List[str] = []
+    for attempt in range(1, max_attempts + 1):
+        try:
+            kwargs: Dict[str, Any] = dict(model=model, prompt=input_prompt, n=n)
+            kwargs.update(
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    top_p=top_p,
+                    frequency_penalty=frequency_penalty,
+                    presence_penalty=presence_penalty,
+                    stop=stop,
+                )
+            resp = client.completions.create(**kwargs)
+            return [c.text for c in resp.choices], errors, attempt
+        except RETRYABLE as exc:
+            errors.append(repr(exc))
+            if attempt == max_attempts:
+                logger.error("%s – final failure", exc)
+                return None, errors, attempt
+            # header‑aware back‑off
+            hdr_delay = None
+            if hasattr(exc, "response") and exc.response is not None:
+                retry_after = exc.response.headers.get("Retry-After")
+                if retry_after:
+                    try:
+                        hdr_delay = float(retry_after)
+                    except ValueError:
+                        hdr_delay = None
+            delay = hdr_delay if hdr_delay else min(30, 2 ** (attempt - 1)) * random.uniform(0.8, 1.2)
+            logger.warning("%s – retry %d/%d in %.1fs", exc, attempt, max_attempts, delay)
+            time.sleep(delay)
+        except Exception as exc:
+            errors.append(repr(exc))
+            logger.error("Non‑retryable error: %s", exc)
+            return None, errors, attempt
+
+    return None, errors, max_attempts
+# ---------------------------------------------------------------------------
+# Parallel helpers
+# ---------------------------------------------------------------------------
+ResultRow = Tuple[int, Optional[List[str]], List[str], int]
+
+def _process(idx: int, req: Dict[str, Any], func_name: str) -> ResultRow:
+    body = req["body"]
+    if func_name == "chat_completions":
+        response, errs, tries = generate_chat_completions(
+            input_prompt=body["messages"][1]["content"],
+            developer_message=body["messages"][0]["content"],
+            model=body["model"],
+            client_name=req["client_name"],
+            temperature=body.get("temperature", 0.0),
+            max_tokens=body.get("max_tokens", 1024),
+            n=body.get("n", 1),
+            top_p=body.get("top_p", 1.0),
+            frequency_penalty=body.get("frequency_penalty", 0.0),
+            presence_penalty=body.get("presence_penalty", 0.0),
+            stop=body.get("stop"),
         )
-        
-        return [
-            {
-                'think': choice.message.reasoning_content,
-                'content': choice.message.content
-            } 
-                for choice in response.choices
-            ]
+    elif func_name == "completions":
+        response, errs, tries = generate_completions(
+            input_prompt=body["prompt"],
+            model=body["model"],
+            client_name=req["client_name"],
+            temperature=body.get("temperature", 0.0),
+            max_tokens=body.get("max_tokens", 1024),
+            n=body.get("n", 1),
+            top_p=body.get("top_p", 1.0),
+            frequency_penalty=body.get("frequency_penalty", 0.0),
+            presence_penalty=body.get("presence_penalty", 0.0),
+            stop=body.get("stop"),
+        )
     else:
-        messages = [
-            {"role": "system", "content": developer_message}, 
-            {"role": "user", "content": input_prompt}
-        ]
-        try:
-            response = client.chat.completions.create(
-                model=model,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                n = n,
-                top_p=top_p,
-                frequency_penalty=frequency_penalty,
-                presence_penalty=presence_penalty,
-                stop=stop
-            )
-        except Exception as e:
-            print(e)
-            return None
-        
-        return [choice.message.content for choice in response.choices]
+        raise ValueError(f"Unknown function name: {func_name}")
 
-def process_chunk_wrapper(args: Tuple[List[Dict[str, Any]], int]) -> List[Tuple[int, Optional[str]]]:
-    """
-    Process a chunk of API requests in parallel.
-
-    Args:
-        args: A tuple containing the chunk of request objects and the chunk ID.
-
-    Returns:
-        List of tuples mapping request index to response content.
-    """
-    chunk, chunk_id = args
-    model = chunk[0]['body']['model']
-    client_name = chunk[0]['client_name']
-    results: List[Tuple[int, Optional[str]]] = []
-    for input_object in tqdm(chunk, desc=f"Process-{chunk_id}", position=chunk_id):
-        # Extract parameters from the input object
-        _id = int(input_object['custom_id'].replace('idx_', ''))
-        input_prompt = input_object['body']['messages'][1]['content']
-        developer_message = input_object['body']['messages'][0]['content']
-        temperature = input_object['body']['temperature']
-        max_tokens = input_object['body']['max_tokens']
-        n = input_object['body']['n']
-        top_p = input_object['body']['top_p']
-        frequency_penalty = input_object['body']['frequency_penalty']
-        presence_penalty = input_object['body']['presence_penalty']
-        stop = input_object['body']['stop']
-
-        # Call your generate_chat_completion function
-        try:
-            response = generate_chat_completion(
-                input_prompt=input_prompt, 
-                developer_message=developer_message, 
-                model=model,
-                client_name=client_name,
-                temperature=temperature, 
-                max_tokens=max_tokens,
-                n=n, 
-                top_p=top_p,
-                frequency_penalty=frequency_penalty, 
-                presence_penalty=presence_penalty, 
-                stop=stop
-            )
-        except:
-            response = None
-        results.append((_id, response))
-        time.sleep(1)
-    return results
+    return idx, response, errs if errs else None, tries
 
 def generate_parallel_completions(
+    *,
     input_filepath: str,
     cache_filepath: str,
-    num_processes: int = 20
+    num_workers: int = 20,
+    checkpoint_every: int = 100,
+    func_name: str = "chat_completions"
 ) -> None:
-    """
-    Execute chat completions in parallel using multiple processes and cache results.
+    """Run chat completions with a thread pool and checkpoint progress."""
+    with open(input_filepath) as fh:
+        requests_all = [json.loads(line) for line in fh]
 
-    Args:
-        input_filepath (str): Path to the newline-delimited JSON input file.
-        cache_filepath (str): Path to save the pickled DataFrame of responses.
-        num_processes (int): Number of worker processes.
-    """    
-    with open(input_filepath, 'r') as f:
-        batch_input = [json.loads(line) for line in f]
-    # Resume from existing cache if available
+    # resume cache
+    done_results: List[ResultRow] = []
+    done_idx: set[int] = set()
     if os.path.exists(cache_filepath):
-        df_cached = pd.read_pickle(cache_filepath)
-        # Load existing results as list of tuples (index, response)
-        results = [(row['idx'], row['response']) for _, row in df_cached.iterrows() if row['response'] != None]
-        success_idx = [item[0] for item in results]
-        batch_input = [input_obj for input_obj in batch_input
-                       if int(input_obj['custom_id'].split("_")[1]) not in success_idx
-                       ]
-    else:
-        results = []
-    
-    # Split the data into chunks for parallel processing
-    chunk_size = max(1, len(batch_input) // num_processes)
-    chunks = [batch_input[i:i + chunk_size] for i in range(0, len(batch_input), chunk_size)]
-        # Set up multiprocessing
-    args = [(chunk, i) for i, chunk in enumerate(chunks)]
+        df_prev = pd.read_pickle(cache_filepath)
+        done_results.extend(
+            [
+                (int(r.idx), r.response, r.error, r.retries)
+                for r in df_prev.itertuples()
+                if r.response is not None
+            ]
+        )
+        done_idx = {r[0] for r in done_results}
+        logger.info("Loaded %d prior successes", len(done_idx))
 
-    with ProcessPoolExecutor(max_workers=num_processes) as executor:
-        futures = [executor.submit(process_chunk_wrapper, arg) for arg in args]
-        for future in as_completed(futures):
-            results.extend(future.result())
-            # Save intermediate checkpoint after each chunk completes
-            sorted_results = sorted(results, key=lambda x: x[0])
-            pd.DataFrame(
-                {
-                    "idx": [idx for idx, _ in sorted_results],
-                    'response': [resp for _, resp in sorted_results]
-                 }
-                 
-                 ).to_pickle(cache_filepath)
+    pending = [req for req in requests_all if int(req["custom_id"].split("_")[1]) not in done_idx]
+    if not pending:
+        logger.info("Nothing left to process; exiting.")
+        return
 
+    args_list: List[Tuple[int, Dict[str, Any]]] = [
+        (int(req["custom_id"].split("_")[1]), req) for req in pending
+    ]
+
+    results = done_results.copy()
+    with ThreadPoolExecutor(max_workers=num_workers) as pool:
+        futures = {pool.submit(_process, idx, req, func_name): idx for idx, req in args_list}
+        for i, fut in enumerate(tqdm(as_completed(futures), total=len(futures), desc="Requests")):
+            try:
+                results.append(fut.result())
+            except Exception as exc:
+                idx = futures[fut]
+                logger.error("Worker crashed on idx %s: %s", idx, exc)
+                results.append((idx, None, [repr(exc)], 0))
+
+            if (i + 1) % checkpoint_every == 0:
+                _save(cache_filepath, results)
+
+    _save(cache_filepath, results)
+    logger.info("Finished %d total results.", len(results))
+
+
+def _save(path: str, rows: List[ResultRow]):
+    df = pd.DataFrame({
+        "idx": [r[0] for r in rows],
+        "response": [r[1] for r in rows],
+        "error": [r[2] for r in rows],
+        "retries": [r[3] for r in rows],
+    })
+    df.sort_values("idx", inplace=True)
+    df.to_pickle(path)
+
+# ---------------------------------------------------------------------------
+# Minibatch generate response
+# ---------------------------------------------------------------------------
 def minibatch_stream_generate_response(input_filepath: str,
                                        batch_log_filepath: str = None,
                                        minibatch_filepath: str = '/home/al2644/research/openai_batch_io/minibatchinput.jsonl',
@@ -349,18 +402,49 @@ def minibatch_stream_retry (batch_log_filepath: str, batch_rate_limit: int = Non
         with open(batch_log_filepath, 'w') as f:
             json.dump(batch_logs, f)
 
-'''
-Utils for OpenAI BatchAPI
-'''
+# ---------------------------------------------------------------------------
+# Batch API templates
+# ---------------------------------------------------------------------------
+def batch_completions_template(
+    input_prompt: str,
+    model: str = 'gpt-4o',
+    client_name: str = '',
+    custom_id: str = '',
+    temperature: float = 0.0,
+    max_tokens: int = 32768,
+    n: int = 1,
+    top_p: float = 1.0,
+    frequency_penalty: float = 0.0,
+    presence_penalty: float = 0.0,
+    stop: Optional[list[str]] = None
+):
+    query_template = {
+        "custom_id": custom_id,
+        "client_name": client_name,
+        "method": "POST",
+        "url": "/v1/completions",
+        "body": {
+            "model": model,
+            "temperature": temperature,
+            "prompt": input_prompt,
+            "max_tokens": max_tokens,
+            "n": n,
+            "top_p": top_p,
+            "frequency_penalty": frequency_penalty,
+            "presence_penalty": presence_penalty,
+            "stop": stop
+        }
+    }
+    return query_template
 
 def batch_chat_completions_template(
     input_prompt: str,
     developer_message: str = 'You are a helpful assistant',
     model: str = 'gpt-4o',
     client_name: str = '',
-    custom_id: str = None,
+    custom_id: str = '',
     temperature: float = 0.0,
-    max_tokens: int = 1024,
+    max_tokens: int = 32768,
     n: int = 1,
     top_p: float = 1.0,
     frequency_penalty: float = 0.0,

@@ -3,7 +3,7 @@ set -ex
 # TODO: before running this script, run the following command to filter the questions
 # bash scripts/filter_questions.sh
 
-export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
+export CUDA_VISIBLE_DEVICES=0,1,2,3
 MODELS_YAML="config/market_models.yaml"
 EVAL_DIR="./results/math-500"
 QUESTION_IDS_FNAME="questions_stress_test_min_correct=3_test_size=200.json"
