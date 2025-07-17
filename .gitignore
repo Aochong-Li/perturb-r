@@ -12,3 +12,7 @@ results/
 results/deepmath_7to9/
 results/hendrycks_math/
 results/math-500/
+share/
+
+# Ignore market models config
+config/market_models.yaml
