@@ -162,14 +162,7 @@ class BenchmarkEval(OpenLMEngine):
         # Evaluate results
         self.result_df = parse_response_dataframe(self.df, 'solution', 'response')
         
-        # Check if contains answer
-        check_if_boxed = []
-        for _, row in self.result_df.iterrows():
-            solution = row['response']
-            if_boxed = math_if_boxed(solution)        
-            check_if_boxed.append(if_boxed)
-        
-        self.result_df['if_boxed'] = check_if_boxed
+        self.result_df['if_boxed'] = self.result_df['response'].apply(math_if_boxed)
         self.result_df.to_pickle(output_path)
         
         # # Log summary statistics
@@ -177,6 +170,8 @@ class BenchmarkEval(OpenLMEngine):
         print(f"Evaluation complete. Accuracy: {accuracy:.2%}")
 
     def api_eval(self) -> None:
+        os.makedirs(self.output_dir + f"api", exist_ok=True)
+        
         engine = OpenAI_Engine(
             input_df=self.df,
             prompt_template="{problem}",
@@ -184,12 +179,13 @@ class BenchmarkEval(OpenLMEngine):
             template_map={"problem": "problem"},
             nick_name=f"benchmark_eval_{self.nick_name}",
             batch_io_root=str(Path.home()) + "/research/openai_batch_io/reasoning",
-            cache_filepath=self.output_dir + f"/{self.nick_name}_api_responses.pkl",
+            cache_filepath=self.output_dir + f"api/{self.nick_name}_api_responses.pickle",
             model=self.model_name,
             client_name=self.client_name,
             temperature=self.temperature,
             max_tokens=self.max_tokens,
             n=self.sample_k,
+            mode="chat_completions"
         )
         engine.run_model(overwrite=self.overwrite)
         self.response = engine.retrieve_outputs(overwrite=self.overwrite)

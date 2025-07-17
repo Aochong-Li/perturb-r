@@ -9,27 +9,23 @@ import json
 import random
 import math
 import argparse
-from pathlib import Path
-from transformers import AutoModelForCausalLM
 
 from core.llm_engine import *
-from core.openai_engine import *
 
 from reward_score.qwen_math import parse_response_dataframe
-from reward_score.math500 import math_if_boxed
+from reward_score.countdown import compute_score as countdown_compute_score, extract_solution
+
 from utils.chunk_r import equal_chunk
 from utils.corrupt_num import *
-from more_itertools import chunked
-
-BUFFER_TOKENS = 8192
 
 class CorruptNumbers(OpenLMEngine):
     def __init__(self,
+                 task: str,
                  model_name: str,
                  nick_name: str,
                  tokenizer_name: str,
                  results_dir: str,
-                 sample_size: int = 250,
+                 question_ids_fname: str = None,
                  tensor_parallel_size: int = 1,
                  gpu_memory_utilization: float = 0.85,
                  dtype: str = "bfloat16",
@@ -38,19 +34,16 @@ class CorruptNumbers(OpenLMEngine):
                  top_p: float = 1.0,
                  top_k: int = -1,
                  max_num_batched_tokens: int = 8192,
-                 mini_batch_size: int = 32,
                  granularity: int = 30,
                  overwrite: bool = False,
                  how: str = "fixed",
-                 client_name: str = "",
                  **kwargs
                  ):
         # Initialize attributes first
-        self.model_name = model_name
-        self.tokenizer_name = tokenizer_name
+        self.task = task
         self.nick_name = nick_name
         self.results_dir = results_dir
-        self.sample_size = sample_size
+        self.question_ids_fname = question_ids_fname
         self.tensor_parallel_size = tensor_parallel_size
         self.gpu_memory_utilization = gpu_memory_utilization
         self.dtype = dtype
@@ -59,78 +52,67 @@ class CorruptNumbers(OpenLMEngine):
         self.top_p = top_p
         self.top_k = top_k
         self.max_num_batched_tokens = max_num_batched_tokens
-        self.mini_batch_size = mini_batch_size
         self.granularity = granularity
         self.how = how
-        self.client_name = client_name
-        self.overwrite = overwrite
 
         # Create output directory if it doesn't exist
         self.output_dir = os.path.join(self.results_dir, f"corrupt_numbers_{self.how}_window")
         os.makedirs(self.output_dir, exist_ok=True)
 
-        if os.path.exists(os.path.join(self.output_dir, f"{self.nick_name}.pickle")) and not self.overwrite:
+        if os.path.exists(os.path.join(self.output_dir, f"{self.nick_name}.pickle")) and not overwrite:
             print(f"Stress test (Corrupt Numbers) already exists: {self.nick_name}")
             exit()
-
-        model = AutoModelForCausalLM.from_pretrained(self.model_name)
-        self.max_position_embeddings = model.config.max_position_embeddings
-
-        if self.client_name == '':
-            config = ModelConfig(
-                model_name=self.model_name,
-                tokenizer_name=self.tokenizer_name,
-                tensor_parallel_size=self.tensor_parallel_size,
-                gpu_memory_utilization=self.gpu_memory_utilization,
-                dtype=self.dtype,
-                max_tokens=self.max_tokens,
-                temperature=self.temperature,
-                top_p=self.top_p,
-                top_k=self.top_k,
-                max_num_batched_tokens=self.max_num_batched_tokens,
-                max_model_len=self.max_position_embeddings
-            )
-            
-            # Initialize parent class
-            super().__init__(config=config)
-
+        
         # Load dataset from pickle file
         self.load_dataset()
+    
+        # Initialize model config
+        config = ModelConfig(
+            model_name=model_name,
+            tokenizer_name=tokenizer_name,
+            tensor_parallel_size=self.tensor_parallel_size,
+            gpu_memory_utilization=self.gpu_memory_utilization,
+            dtype=self.dtype,
+            max_tokens=self.max_tokens,
+            temperature=self.temperature,
+            top_p=self.top_p,
+            top_k=self.top_k,
+            max_num_batched_tokens=self.max_num_batched_tokens
+        )
+
+        super().__init__(config=config)
 
         print(f"Start stress testing: {self.nick_name} on Number Corruption")
 
     def load_dataset(self) -> None:
+        """Load dataset from pickle file.
+        
+        Args:
+            dataset_path: Path to the pickle file containing the dataset
+        """
         self.dataset_path = os.path.join(self.results_dir, "benchmark", f"{self.nick_name}.pickle")
         self.df = pd.read_pickle(self.dataset_path)
+        self.df = self.df[(self.df["correct"] == 1.) & (self.df["response"].str.contains("</think>"))].reset_index(drop = True)
         
-        self.df['response_tokens'] = self.df.apply(lambda x: len(self.tokenizer.encode(x['response'])) 
-                                                    if x['model_is_correct'] else self.max_position_embeddings,
-                                                    axis = 1)
-      
-        rate = self.df.groupby('problem').agg({'model_is_correct': 'sum', 'response_tokens': 'min'}) \
-            .reset_index().rename(columns = {"model_is_correct": "solve_n", "response_tokens": "min_tokens"})
+        if self.question_ids_fname is not None:
+            question_ids = json.load(open(os.path.join(self.results_dir, self.question_ids_fname)))
+        else:
+            question_ids = None
+        
+        try:
+            if self.task == "math":
+                self.compute_score = math_compute_score
+                self.df = self.df[self.df['unique_id'].isin(question_ids)].reset_index(drop = True) if question_ids is not None else self.df
+                self.df = self.df.drop_duplicates(subset = ["unique_id"]).reset_index(drop = True)
+            elif self.task == "countdown":
+                self.compute_score = countdown_compute_score
+                self.df = self.df[self.df['problem'].isin(question_ids)].reset_index(drop = True) if question_ids is not None else self.df
+            self.df = self.df.drop(columns = ['correct']).rename(columns = {'response': 'original_response'})
+            
+        except Exception as e:
+            raise RuntimeError(f"Failed to load dataset from pickle file: {e}")
 
-        prob_df = rate[(rate['solve_n'] > 0) & (rate['min_tokens'] < self.max_position_embeddings - BUFFER_TOKENS)] # choose problems that have at least one correct response and the response tokens are less than 8192
-
-        inv_counts = (
-            prob_df.groupby('solve_n')['problem']
-            .transform('count')
-            .rdiv(1.0)
-        )
-        prob_df['w'] = inv_counts / inv_counts.sum()
-
-        chosen = prob_df.sample(n=self.sample_size, weights='w', random_state=42)['problem'].tolist()
-        self.df = self.df[
-            (self.df.problem.isin(chosen)) &
-             (self.df.model_is_correct == 1) &
-             (self.df.response_tokens < self.max_position_embeddings - BUFFER_TOKENS)
-             ].reset_index(drop=True)
-        self.df = self.df.drop_duplicates(subset = 'problem').reset_index(drop = True)
-
-        self.df = self.df[['problem', 'solution', 'source', 'response']].rename(columns = {'response': 'original_response'})
-        self.df = self.df.merge(prob_df[['problem', 'solve_n']], on = 'problem').reset_index(drop = True)
-
-    def corrupt_thinking(self, how: str = "fixed", unit = 0.2, max_start_pos: float = 1.0, num_corrupt_sample: int = 4, seed: int = 42) -> None:
+    def corrupt_thinking(self, how: str = "fixed", unit = 0.2, max_start_pos: float = 1.0, sample_size: int = 4, seed: int = 42) -> None:
         rng = random.Random(seed)
         self.df["reasoning_chunks"] = self.df["original_response"].apply(self.process_response)
         self.df = self.df.dropna(how='any').reset_index(drop = True)
@@ -180,7 +162,7 @@ class CorruptNumbers(OpenLMEngine):
                                    "num_prefix_tokens",
                                    "num_corrupted_tokens"]}
 
-            for _ in range(num_corrupt_sample):
+            for _ in range(sample_size):
                 start_chunk_idx = random.randint(0, int(n * max_start_pos))
                 end_chunk_idx = start_chunk_idx + math.ceil(n * unit)
                 end_chunk_idx = min(end_chunk_idx, n)
@@ -214,10 +196,8 @@ class CorruptNumbers(OpenLMEngine):
         self.corrupt_number(rng)
     
     def process_response(self, response: str) -> None:
-        if "</think>" in response:
-            reasoning = response.split('</think>')[0] + "</think>\n"
-        else:
-            reasoning = response
+        reasoning, _ = response.split('</think>')
+        reasoning += "</think>\n"
 
         return equal_chunk(reasoning, self.granularity)
     
@@ -231,74 +211,102 @@ class CorruptNumbers(OpenLMEngine):
             
             return corrupted_reasoning, replacement
         
-        self.df["corrupted_reasoning"], self.df["replacement"] = zip(*self.df.apply(math_corrupt_number, axis=1))
+        def countdown_corrupt_number (row):
+            corrupted_reasoning = row["corrupted_reasoning"]
+            target = row["target"]
+            numbers = extract_number(corrupted_reasoning)
 
-    def local_eval(self) -> None:
-        self.responses = []
-        for batch in chunked(list(self.df["prompt"]), self.mini_batch_size):
-            new_sampling_params = [
-                {
-                    "max_tokens": min(self.max_tokens, self.max_position_embeddings - len(self.tokenizer.encode(prompt)) - 1)
-                }
-                for prompt in batch
-            ]
-            out = self.generate(prompts=batch, new_sampling_params=new_sampling_params)
-            self.responses.append(out)
-        self.response = pd.concat(self.responses, ignore_index=True).rename(columns={'response': 'post_corruption_response'})
-
-        self.response.index = self.df.index
-        self.df = pd.concat([self.df, self.response], axis=1)
-
-    def api_eval(self) -> None:
-        os.makedirs(self.output_dir + f"api", exist_ok=True)
+            replacement = {number: perturb_number(number, rng) for number in list(numbers) if number != target}
+            
+            corrupted_reasoning = replace_number(corrupted_reasoning, replacement)
+            
+            return corrupted_reasoning, replacement
         
-        engine = OpenAI_Engine(
-            input_df=self.df,
-            nick_name=f"corrupt_numbers_{self.nick_name}",
-            batch_io_root=str(Path.home()) + "/research/openai_batch_io/reasoning",
-            cache_filepath=self.output_dir + f"api/{self.nick_name}_api_responses.pickle",
-            model=self.model_name,
-            client_name=self.client_name,
-            temperature=self.temperature,
-            max_tokens=self.max_tokens,
-            mode="completions"
-        )
-        engine.run_model(overwrite=self.overwrite)
-        self.response = engine.retrieve_outputs(overwrite=self.overwrite)
-
-        self.response = self.response.explode(['response']).set_index('idx').rename(columns = {'response': 'post_corruption_response'})
-        self.df = self.df.merge(self.response, left_index=True, right_index=True)
+        func = countdown_corrupt_number if self.task == "countdown" else math_corrupt_number
+        self.df["corrupted_reasoning"], self.df["replacement"] = zip(*self.df.apply(func, axis=1))
 
     def eval(self) -> None:
-        template_prefix, template_suffix = self.tokenizer.apply_chat_template(
-            [{"role": "user", "content": "HANDLE"}], tokenize=False, add_generation_prompt=True).\
-            split("HANDLE")
+        """Evaluate the model on the dataset and save results.
         
-        self.df["prompt"] = template_prefix + self.df["problem"] + template_suffix + \
-            self.df['prefix_reasoning'] + self.df['corrupted_reasoning']
+        This method:
+        1. Generates model responses
+        2. Computes correctness scores
+        3. Saves results to disk
+        """
+        try:
+            # The suffix after corrupt reasoning is to force the model to answer with </think>
+            template_prefix, template_suffix = self.tokenizer.apply_chat_template(
+                [{"role": "user", "content": "HANDLE"}], tokenize=False, add_generation_prompt=True).\
+                split("HANDLE")
+            
+            # Case 1: corrupt the reasoning trace after </think>
+            self.post_think_df = self.df.copy()
+            self.post_think_df["prompt"] = template_prefix + self.post_think_df["problem"] + template_suffix + \
+                self.post_think_df['prefix_reasoning'] + self.post_think_df['corrupted_reasoning']
+            self.post_think_df["type"] = "post_<think>"
 
-        if self.client_name == '':
-            self.local_eval()
-        else:
-            self.api_eval()
-        
-        output_path = os.path.join(self.output_dir, f"{self.nick_name}.pickle")
-        self.df.to_pickle(output_path)
+            # Case 2: corrupt the reasoning trace before </think>
+            self.pre_think_df = self.df.copy()
+            self.pre_think_df["prompt"] = template_prefix +  self.pre_think_df["problem"] + \
+                "\n\nThis is user's thinking process for this problem: " + \
+                self.pre_think_df['prefix_reasoning'].replace("<think>", "") + \
+                self.pre_think_df['corrupted_reasoning'].replace("<think>", "") + template_suffix
+            self.pre_think_df["type"] = "pre_<think>"
 
-        self.result_df = parse_response_dataframe(self.df, 'solution', 'post_corruption_response')
-        self.result_df['if_boxed'] = self.result_df['post_corruption_response'].apply(math_if_boxed)
-        self.result_df.to_pickle(output_path)
+            # Combine results
+            self.df = pd.concat([self.post_think_df, self.pre_think_df], axis=0, ignore_index=True)
+            self.response = self.generate(prompts=self.df["prompt"]).rename(columns = {'response': 'post_corruption_response'})
+            self.response.index = self.df.index
+            self.df = pd.concat([self.df, self.response], axis=1)
+
+            # Compute correctness scores and check if model answers
+            correctness = []
+            if_answer = []
+            for _, row in self.df.iterrows():
+                solution = row['post_corruption_response']
+                
+                # Clean solution if it contains thinking steps
+                if "</think>" in solution:
+                    solution = solution.split("</think>")[-1]
+                
+                if self.task == "math":
+                    ground_truth = row.get("solution")
+                    score = self.compute_score(solution, ground_truth)
+                elif self.task == "countdown":
+                    numbers, target = row['nums'], row['target']
+                    score = self.compute_score(solution, numbers, target)
+                    if_answer.append(extract_solution(solution) != None)
+
+                correctness.append(score)
+            
+            # Combine results
+            self.df['still_correct'] = correctness
+            
+            if if_answer:
+                self.df['if_answer'] = if_answer
+            
+            # Save results
+            output_path = os.path.join(self.output_dir, f"{self.nick_name}.pickle")
+            self.df.to_pickle(output_path)
+            
+            # Log summary statistics
+            print(f"Evaluation complete. Pre-Think Accuracy: {self.df[self.df['type'] == 'pre_<think>']['still_correct'].mean():.2%}")
+            print(f"Evaluation complete. Post-Think Accuracy: {self.df[self.df['type'] == 'post_<think>']['still_correct'].mean():.2%}")
+            
+        except Exception as e:
+            logging.error(f"Error during evaluation: {str(e)}")
+            raise
 
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description="Parse Arguments for Reasoner QA evaluation")
 
+    parser.add_argument("--task", type=str, required=True, help="Task to evaluate on")
     parser.add_argument("--model_name", type=str, required=True, help="Name of the model to use")
     parser.add_argument("--nick_name", type=str, required=True, help="Nickname for the model")
     parser.add_argument("--tokenizer_name", type=str, required=True, help="Name of the tokenizer to use")
     parser.add_argument("--results_dir", type=str, required=True, help="Name of the dataset to evaluate on")
-    parser.add_argument("--sample_size", type=int, default=200, help="Number of problems to sample")
-
-    parser.add_argument("--client_name", type=str, default="", help="Name of api client")
+    parser.add_argument("--question_ids_fname", type=str, required=False, default=None, help="stress test question ids file name")
+    
     parser.add_argument("--tensor_parallel_size", type=int, default=1,
                         help="Number of GPUs for tensor parallelism")
     parser.add_argument("--gpu_memory_utilization", type=float, default=0.5,
@@ -315,9 +323,7 @@ if __name__=="__main__":
                         help="Top-k sampling parameter")
     parser.add_argument("--max_num_batched_tokens", type=int, default=8192,
                         help="Maximum number of tokens to batch")
-
-    parser.add_argument("--mini_batch_size", type=int, default=128,
-                        help="Mini batch size for local evaluation")
+    
     parser.add_argument("--granularity", type=int, default=30,
                         help="Granularity of the reasoning chunks")
     parser.add_argument("--how", type=str, default="fixed",
@@ -326,14 +332,14 @@ if __name__=="__main__":
                         help="Unit of the reasoning chunks")
     parser.add_argument("--max_start_pos", type=float, default=1.0,
                         help="Maximum start position of the reasoning chunks")
-    parser.add_argument("--num_corrupt_sample", type=int, default=4,
+    parser.add_argument("--sample_size", type=int, default=4,
                         help="Sample size of the reasoning chunks")
 
     parser.add_argument("--seed", type=int, default=42,
                         help="Random seed for reproducibility")
     parser.add_argument("--overwrite", action="store_true",
                         help="Overwrite existing results")
-    
+
     args = parser.parse_args()
     engine = CorruptNumbers(
         **vars(args),
@@ -343,7 +349,7 @@ if __name__=="__main__":
         how=args.how,
         unit=args.unit,
         max_start_pos=args.max_start_pos,
-        num_corrupt_sample=args.num_corrupt_sample,
+        sample_size=args.sample_size,
         seed=args.seed
     )
     engine.eval()

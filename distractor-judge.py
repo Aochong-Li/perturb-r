@@ -8,12 +8,12 @@ import time
 
 PROMPT_TEMPLATE = """### System Prompt
 You are an experienced examiner who evaluates whether a student's answer to a given question is correct. 
-Your task is to determine if the student's final answer matches the standard answer provided, based solely on correctness and the question's specific requirements. 
-Do not perform any additional calculations or reinterpret the question. Simply compare the student's answer to the standard answer to determine if it satisfies the question's requirements.
+Your task is to determine if the student's final answer matches one of the standard answers provided, based solely on correctness and the question's specific requirements. 
+Do not perform any additional calculations or reinterpret the question. Simply compare the student's answer to the standard answers to determine if it satisfies the question's requirements.
 
 Focus strictly on:
 1. Understanding the exact requirement of the question.
-2. Comparing the student's final answer directly to the provided standard answer.
+2. Comparing the student's final answer directly to the provided standard answers.
 3. Your task is not to solve the problem but to determine whether the student's answer is correct based on the question's requirements. Avoid any unnecessary analysis, assumptions, or re-solving the problem.
 
 Note:

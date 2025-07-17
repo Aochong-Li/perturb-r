@@ -2,7 +2,6 @@ set -ex
 
 # TODO: before running this script, run the following command to filter the questions
 # bash scripts/filter_questions.sh
-
 export CUDA_VISIBLE_DEVICES=0,1,2,3
 MODELS_YAML="config/market_models.yaml"
 DATASET_NAME="allmath"
@@ -19,7 +18,7 @@ for model in data['models']:
 
 # Loop through each model
 echo "$MODELS_INFO" | while IFS=, read -r model_name nick_name; do
-    python stress-test/corrupt_numbers.py \
+    python stress-test/inject_distractor.py \
         --model_name "${model_name}" \
         --nick_name "${nick_name}" \
         --tokenizer_name "${model_name}" \
@@ -29,14 +28,13 @@ echo "$MODELS_INFO" | while IFS=, read -r model_name nick_name; do
         --gpu_memory_utilization 0.9 \
         --dtype bfloat16 \
         --max_tokens 32768 \
-        --mini_batch_size 640 \
         --temperature 0.6 \
+        --mini_batch_size 1024 \
         --top_p 0.95 \
         --top_k -1 \
         --granularity 30 \
-        --how fixed \
         --max_num_batched_tokens 4096 \
-        --unit 0.2
+        --num_distract_candidates 20 \
+        --unit 0.2 \
+        --overwrite
 done
-
-    
