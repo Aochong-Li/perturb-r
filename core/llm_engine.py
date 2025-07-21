@@ -183,11 +183,11 @@ class OpenLMEngine:
 
 if __name__ == '__main__':
     config = ModelConfig(
-        model_name="deepseek-ai/DeepSeek-R1-0528-Qwen3-8B",
+        model_name="../rlvr/sft/LLaMA-Factory/outputs/deepmath/Qwen2.5-1.5B-DeepMath-level1-5-117k-sft-5epochs-5e-5lr/checkpoint-4570",
         tensor_parallel_size=2,
         gpu_memory_utilization=0.85,
         dtype="bfloat16",
-        max_tokens=32768,
+        max_tokens=40960,
         temperature=0.6,
         top_p=1.0,
         top_k=-1

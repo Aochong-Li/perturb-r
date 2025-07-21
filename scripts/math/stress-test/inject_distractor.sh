@@ -29,10 +29,10 @@ echo "$MODELS_INFO" | while IFS=, read -r model_name nick_name; do
         --dtype bfloat16 \
         --max_tokens 32768 \
         --temperature 0.6 \
-        --mini_batch_size 1024 \
         --top_p 0.95 \
         --top_k -1 \
         --granularity 30 \
+        --mini_batch_size 1024 \
         --max_num_batched_tokens 4096 \
         --num_distract_candidates 20 \
         --unit 0.2 \

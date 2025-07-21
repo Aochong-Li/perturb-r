@@ -12,8 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # Adapted from https://github.com/EleutherAI/lm-evaluation-harness/blob/main/lm_eval/tasks/hendrycks_math/utils.py
-def math_compute_score(solution_str, ground_truth) -> float:
-    return compute_score(solution_str, ground_truth)
+def math_verify_score(solution_str, ground_truth) -> float:
+    from math_verify import verify, parse
+
+    try:
+        mathv_pred = parse(solution_str)
+        mathv_correct = verify(parse(str(ground_truth)), mathv_pred, float_rounding=6, numeric_precision=15, strict=True)
+    except Exception:
+        mathv_correct = False
+    
+    return mathv_correct
+
 
 def math_if_boxed(solution_str) -> bool:
     try:
@@ -21,6 +30,7 @@ def math_if_boxed(solution_str) -> bool:
         return True
     except Exception as e:
         return False
+
 
 def compute_score(solution_str, ground_truth) -> float:
     retval = 0.

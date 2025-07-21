@@ -24,10 +24,10 @@ Note:
 
 Your response must include:
 ### Short Analysis
-Provide a brief (< 50 words) and direct analysis that compares the student's answer to the standard answer inside <analysis></analysis> tags.
+Provide a brief (< 50 words) and direct analysis that compares the student's answer to the standard answer between <analysis> </analysis> tags.
 
 ### Correctness
-At the end, You should report a label CORRECT or WRONG inside <judge></judge> tags.
+At the end, You should report a label CORRECT or WRONG between <judge> </judge> tags (e.g., <judge>CORRECT</judge>).
 
 
 ### User Prompt
@@ -47,16 +47,12 @@ class ModelJudge():
                  pred_col: str,
                  output_dir: str,
                  nick_name: str,
-                 how: str = 'all',
-                 is_correct_col: str = 'is_correct',
                  ):
         self.input_df = input_df
         self.problem_col = problem_col
         self.solution_col = solution_col
         self.response_col = response_col
         self.pred_col = pred_col
-        self.how = how
-        self.is_correct_col = is_correct_col
         self.output_dir = output_dir
         self.nick_name = nick_name
         
@@ -88,10 +84,6 @@ class ModelJudge():
 
     def run(self, overwrite: bool = True) -> pd.DataFrame:
         self.eval_df = self.input_df.copy()
-        if self.how == "false-only":
-            self.eval_df = self.input_df[self.input_df[self.is_correct_col] == False]
-            self.noeval_df = self.input_df[self.input_df[self.is_correct_col] == True]
-        
         self.eval_df['model_pred'] = self.eval_df.apply(self.extract_pred, axis=1)
         
         engine = OpenAI_Engine(
@@ -117,15 +109,9 @@ class ModelJudge():
         return self.response
     
     def merge(self) -> pd.DataFrame:
-        self.eval_df = self.eval_df.merge(self.response[['model_is_correct']], left_index=True, right_index=True)
-        
-        if self.how == "false-only":
-            self.noeval_df['model_is_correct'] = self.noeval_df['is_correct']
-            self.result_df = pd.concat([self.eval_df, self.noeval_df])
-        else:
-            self.result_df = self.eval_df
-
-        return self.result_df
+        self.eval_df = self.eval_df.merge(self.response[['model_judge', 'model_is_correct']], left_index=True, right_index=True)
+    
+        return self.eval_df
     
 if __name__ == "__main__":
     """
@@ -133,13 +119,11 @@ if __name__ == "__main__":
     python model-judge.py \
       --input_filepath ./results/allmath/benchmark/R1-Distill-Qwen-32B.pickle \
       --output_dir ./results/allmath/benchmark/model_judge \
-      --nick_name R1-Distill-Qwen-32B \
-      --how all
+      --nick_name R1-Distill-Qwen-32B
 
     python model-judge.py \
-      --input_dir ./results/allmath/corrupt_numbers_fixed_window \
-      --output_dir ./results/allmath/corrupt_numbers_fixed_window/model_judge \
-      --how all
+      --input_dir ./results/allmath/benchmark \
+      --output_dir ./results/allmath/benchmark/model_judge
     """
 
     parser = argparse.ArgumentParser(
@@ -149,7 +133,6 @@ if __name__ == "__main__":
     parser.add_argument("--input_filepath", type=str, required=False, help="Path to input pickle file.")
     parser.add_argument("--output_dir", type=str, required=True, help="Directory to save outputs.")
     parser.add_argument("--nick_name", type=str, required=False, help="Nickname for this run.")
-    parser.add_argument("--how", type=str, required=True, choices=["all", "false-only"], help="Evaluation mode.")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing outputs if set.")
 
     args = parser.parse_args()
@@ -167,10 +150,11 @@ if __name__ == "__main__":
             response_col=response_col,
             pred_col=pred_col,
             output_dir=args.output_dir,
-            nick_name=args.nick_name,
-            how=args.how,
+            nick_name=args.nick_name
         )
         judge_engine.run(overwrite=args.overwrite)
+        result_df = judge_engine.merge()
+        result_df.to_pickle(os.path.join(args.output_dir, f"{args.nick_name}_result.pickle"))
         
     elif args.input_dir:
         finished = []
@@ -185,20 +169,9 @@ if __name__ == "__main__":
                     input_df = pd.read_pickle(os.path.join(args.input_dir, fname))
                     nick_name = fname.replace(".pickle", "")
                     
-                    if not args.overwrite and os.path.exists(os.path.join(args.output_dir, f"{nick_name}_model_judge.pickle")):
+                    if not args.overwrite and "model_is_correct" in input_df.columns:
                         print(f"Skipping {nick_name} because it already exists")
                         finished.append(nick_name)
-
-                        # This is just a hack to merge the results of the previous run
-                        if "model_is_correct" not in input_df.columns:
-                            response_df = pd.read_pickle(os.path.join(args.output_dir, f"{nick_name}_model_judge.pickle"))
-                            input_df = input_df.merge(response_df[['model_is_correct']], left_index=True, right_index=True)
-                            input_df.to_pickle(os.path.join(args.input_dir, fname))
-                            print("Merged the results of the previous run")    
-                        continue
-                    
-                    if "pred" not in input_df.columns:
-                        print(f"Skipping {nick_name} because it doesn't have pred column")
                         continue
                     
                     judge_engine = ModelJudge(
@@ -208,11 +181,12 @@ if __name__ == "__main__":
                         response_col=response_col,
                         pred_col=pred_col,
                         output_dir=args.output_dir,
-                        nick_name=nick_name,
-                        how=args.how,
+                        nick_name=nick_name
                     )
-                    print(f"Starting to judge {nick_name} with {args.how} mode")
+                    print(f"Starting to judge {nick_name}")
                     judge_engine.run(overwrite=args.overwrite)
+                    result_df = judge_engine.merge()
+                    result_df.to_pickle(os.path.join(args.input_dir, fname))
                     print(f"Finished judging {nick_name}")
             
             print(f"Waiting for 60 seconds before checking again")

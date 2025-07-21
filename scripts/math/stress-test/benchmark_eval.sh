@@ -3,9 +3,10 @@ set -ex
 export CUDA_VISIBLE_DEVICES=0,1,2,3
 
 # -------- static bits you rarely touch --------
-MODELS_YAML="config/market_models.yaml"
-DATASET_NAME="allmath"
-SAMPLE_K=8
+MODELS_YAML="config/control_study.yaml"
+DATASET_NAME="hendrycks_math"
+SPLIT="Level5"
+SAMPLE_K=4
 DATASET_PATH="./data/${DATASET_NAME}"
 OUTPUT_DIR="./results/${DATASET_NAME}/benchmark"
 # ----------------------------------------------
@@ -28,12 +29,13 @@ echo "$MODELS_INFO" | while IFS=, read -r model_name nick_name; do
     --nick_name "$nick_name" \
     --tokenizer_name "$model_name" \
     --dataset_name_or_path $DATASET_PATH \
-    --split_name "test" \
+    --split_name $SPLIT \
     --output_dir $OUTPUT_DIR \
+    --filename_suffix $SPLIT \
     --tensor_parallel_size 4 \
     --gpu_memory_utilization 0.9 \
     --dtype bfloat16 \
-    --max_tokens 32768 \
+    --max_tokens 16384 \
     --temperature 0.6 \
     --top_p 0.95 \
     --top_k -1 \

@@ -1,43 +1,35 @@
 #!/bin/bash
 set -ex
-export CUDA_VISIBLE_DEVICES=0,1
 
 # -------- static bits you rarely touch --------
-MODELS_YAML="config/market_models.yaml"
 DATASET_NAME="allmath"
-SAMPLE_K=1
+SAMPLE_K=8
 DATASET_PATH="./data/${DATASET_NAME}"
 OUTPUT_DIR="./results/${DATASET_NAME}/benchmark"
 # ----------------------------------------------
 
-# Use Python to extract model information from YAML
-MODELS_INFO=$(python -c "
-import yaml
-with open('$MODELS_YAML', 'r') as f:
-    data = yaml.safe_load(f)
-for model in data['models']:
-    print(f\"{model['model_name']},{model['nick_name']}\")
-")
-
+# Define models as array of "model_name,nick_name" pairs
+MODELS_NICK=(
+    "deepseek-reasoner, DeepSeek-R1-0528"
+)
 # Loop through each model
-echo "$MODELS_INFO" | while IFS=, read -r model_name nick_name; do
+for model_info in "${MODELS_NICK[@]}"; do
+    IFS=, read -r model_name nick_name <<< "$model_info"
     echo "Running model: $nick_name (model_name: $model_name)"
 
-    python benchmark_eval_dev.py \
+    python benchmark_eval.py \
     --model_name "$model_name" \
     --nick_name "$nick_name" \
     --tokenizer_name "$model_name" \
     --dataset_name_or_path $DATASET_PATH \
     --split_name "test" \
     --output_dir $OUTPUT_DIR \
-    --sample_size 10 \
-    --tensor_parallel_size 4 \
-    --gpu_memory_utilization 0.9 \
-    --dtype bfloat16 \
-    --max_tokens 32768 \
+    --sample_size 5 \
+    --max_tokens 60000 \
     --temperature 0.6 \
     --top_p 0.95 \
     --top_k -1 \
     --sample_k $SAMPLE_K \
-    --client_name "deepinfra"
+    --client_name "deepseek" \
+    --overwrite True
 done 

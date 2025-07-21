@@ -17,7 +17,7 @@ def str2bool(v):
     if isinstance(v, bool):
         return v
     if v.lower() == "true":
-        return True
+        return True 
     elif v.lower() == "false":
         return False
 
@@ -42,7 +42,8 @@ class BenchmarkEval(OpenLMEngine):
                  enable_thinking: bool = True,
                  max_num_batched_tokens: int = 32768,
                  overwrite: bool = False,
-                 client_name: str = ''
+                 client_name: str = '',
+                 filename_suffix: str = ''
                  ):
 
         # Initialize attributes first
@@ -61,11 +62,13 @@ class BenchmarkEval(OpenLMEngine):
         self.overwrite = overwrite
         self.max_num_batched_tokens = max_num_batched_tokens
         self.client_name = client_name
+        self.filename_suffix = filename_suffix
 
         # Create output directory if it doesn't exist
         os.makedirs(self.output_dir, exist_ok=True)
+        self.output_filepath = os.path.join(self.output_dir, f"{self.nick_name}{'_nothinking' if not self.enable_thinking else ''}{self.filename_suffix if self.filename_suffix else ''}.pickle")
         if not self.overwrite:
-            if os.path.exists(os.path.join(self.output_dir, f"{self.nick_name}{'_nothinking' if not self.enable_thinking else ''}.pickle")):
+            if os.path.exists(self.output_filepath):
                 print(f"Results already exist for {self.nick_name} with enable_thinking={self.enable_thinking}")
                 exit()
         elif "qwen3" not in self.nick_name.lower() and not self.enable_thinking:
@@ -97,9 +100,10 @@ class BenchmarkEval(OpenLMEngine):
                 max_num_batched_tokens=self.max_num_batched_tokens
             )
             # Download model weights if not already downloaded
-            _ = AutoModelForCausalLM.from_pretrained(self.model_name)
+            _ = AutoModelForCausalLM.from_pretrained(self.model_name, trust_remote_code=True)
             # Initialize parent class
             super().__init__(config=config)
+            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
 
         print(f"Start evaluating {self.nick_name} on dataset: {dataset_name_or_path} | subset: {subset_name} | split: {split_name} | avg@{self.sample_k}")
 
@@ -156,21 +160,16 @@ class BenchmarkEval(OpenLMEngine):
         self.df = pd.concat([self.df, self.response], axis=1)
 
         # Save results
-        output_path = os.path.join(self.output_dir, f"{self.nick_name}{'_nothinking' if not self.enable_thinking else ''}.pickle")
-        self.df.to_pickle(output_path)
+        self.df.to_pickle(self.output_filepath)
 
         # Evaluate results
         self.result_df = parse_response_dataframe(self.df, 'solution', 'response')
         
         self.result_df['if_boxed'] = self.result_df['response'].apply(math_if_boxed)
-        self.result_df.to_pickle(output_path)
+        self.result_df.to_pickle(self.output_filepath)
         
-        # # Log summary statistics
-        accuracy = self.result_df['is_correct'].mean()
-        print(f"Evaluation complete. Accuracy: {accuracy:.2%}")
-
     def api_eval(self) -> None:
-        os.makedirs(self.output_dir + f"api", exist_ok=True)
+        os.makedirs(self.output_dir + "/api", exist_ok=True)
         
         engine = OpenAI_Engine(
             input_df=self.df,
@@ -179,7 +178,7 @@ class BenchmarkEval(OpenLMEngine):
             template_map={"problem": "problem"},
             nick_name=f"benchmark_eval_{self.nick_name}",
             batch_io_root=str(Path.home()) + "/research/openai_batch_io/reasoning",
-            cache_filepath=self.output_dir + f"api/{self.nick_name}_api_responses.pickle",
+            cache_filepath=self.output_dir + f"/api/{self.nick_name}_api_responses.pickle",
             model=self.model_name,
             client_name=self.client_name,
             temperature=self.temperature,
@@ -187,6 +186,7 @@ class BenchmarkEval(OpenLMEngine):
             n=self.sample_k,
             mode="chat_completions"
         )
+        import pdb; pdb.set_trace()
         engine.run_model(overwrite=self.overwrite)
         self.response = engine.retrieve_outputs(overwrite=self.overwrite)
         self.response = self.response.set_index('idx').explode(['response']).reset_index(drop=True)
@@ -207,6 +207,7 @@ if __name__=="__main__":
     parser.add_argument("--sample_size", type=int, default=None, help="Number of samples to use (default: None)")
     parser.add_argument("--output_dir", type=str, default='/share/goyal/lio/reasoning/eval/', 
                        help="Directory to save evaluation results")
+    parser.add_argument("--filename_suffix", type=str, default="")
 
     parser.add_argument("--tensor_parallel_size", type=int, default=2,
                         help="Number of GPUs for tensor parallelism")
