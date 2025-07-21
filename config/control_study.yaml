@@ -1,3 +1,6 @@
 models:
-  - model_name: "aochongoliverli/Qwen2.5-1.5B-Zero-initial-checkpoint"
-    nick_name: "Qwen2.5-1.5B-Zero-Base"
+  # - model_name: "aochongoliverli/Qwen2.5-1.5B-Zero-initial-checkpoint"
+  #   nick_name: "Qwen2.5-1.5B-Zero-Base"
+  
+  - model_name: "Qwen/QwQ-32B"
+    nick_name: "QwQ-32B"

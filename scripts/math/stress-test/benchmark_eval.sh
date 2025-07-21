@@ -1,12 +1,12 @@
 #!/bin/bash
 set -ex
-export CUDA_VISIBLE_DEVICES=0,1,2,3
+export CUDA_VISIBLE_DEVICES=0,1
 
 # -------- static bits you rarely touch --------
 MODELS_YAML="config/control_study.yaml"
 DATASET_NAME="hendrycks_math"
-SPLIT="Level5"
-SAMPLE_K=4
+SPLIT="train"
+SAMPLE_K=1
 DATASET_PATH="./data/${DATASET_NAME}"
 OUTPUT_DIR="./results/${DATASET_NAME}/benchmark"
 # ----------------------------------------------
