@@ -42,3 +42,7 @@ models:
   
   # - model_name: "aochongoliverli/Qwen2.5-3B-math8k-dapo-20epochs-8rollouts-8192max-len-step300"
   #   nick_name: "Qwen2.5-3B-math8k-dapo-step300"
+
+  # SimpleZoo Models
+  - model_name: "hkust-nlp/Qwen-2.5-7B-SimpleRL-Zoo"
+    nick_name: "Qwen-2.5-7B-SimpleRL-Zoo"

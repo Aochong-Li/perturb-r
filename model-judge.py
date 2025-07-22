@@ -24,7 +24,7 @@ Note:
 
 Your response must include:
 ### Short Analysis
-Provide a brief (< 50 words) and direct analysis that compares the student's answer to the standard answer between <analysis> </analysis> tags.
+Provide a short (< 20 words) and direct analysis that compares the student's answer to the standard answer between <analysis> </analysis> tags.
 
 ### Correctness
 At the end, You should report a label CORRECT or WRONG between <judge> </judge> tags (e.g., <judge>CORRECT</judge>).
@@ -122,8 +122,8 @@ if __name__ == "__main__":
       --nick_name R1-Distill-Qwen-32B
 
     python model-judge.py \
-      --input_dir ./results/allmath/benchmark \
-      --output_dir ./results/allmath/benchmark/model_judge
+      --input_dir ./results/math500/benchmark \
+      --output_dir ./results/math500/benchmark/model_judge
     """
 
     parser = argparse.ArgumentParser(
@@ -137,8 +137,8 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     problem_col = "problem"
-    solution_col = "solution"
-    response_col = "post_corruption_response"
+    solution_col = "gt"
+    response_col = "response"
     pred_col = "pred"
     
     if args.input_filepath:

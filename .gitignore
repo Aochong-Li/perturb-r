@@ -16,4 +16,5 @@ share/
 
 # Ignore market models config
 config/market_models.yaml
+config/control_study.yaml
 data/
