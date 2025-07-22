@@ -1,6 +1,50 @@
 models:
   # - model_name: "aochongoliverli/Qwen2.5-1.5B-Zero-initial-checkpoint"
   #   nick_name: "Qwen2.5-1.5B-Zero-Base"
+<<<<<<< Updated upstream
   
   - model_name: "Qwen/QwQ-32B"
     nick_name: "QwQ-32B"
+=======
+    
+  - model_name: "Qwen/QwQ-32B"
+    nick_name: "QwQ-32B"
+  
+  # SFT Distilled Models
+  - model_name: "aochongoliverli/Qwen2.5-3B-math8k-sft-distill-20epochs-5e-5lr-step50"
+    nick_name: "Qwen2.5-3B-math8k-sft-distill-step50"
+  
+  - model_name: "aochongoliverli/Qwen2.5-3B-math8k-sft-distill-20epochs-5e-5lr-step100"
+    nick_name: "Qwen2.5-3B-math8k-sft-distill-step100"
+  
+  - model_name: "aochongoliverli/Qwen2.5-3B-math8k-sft-distill-20epochs-5e-5lr-step150"
+    nick_name: "Qwen2.5-3B-math8k-sft-distill-step150"
+  
+  - model_name: "aochongoliverli/Qwen2.5-3B-math8k-sft-distill-20epochs-5e-5lr-step200"
+    nick_name: "Qwen2.5-3B-math8k-sft-distill-step200"
+  
+  - model_name: "aochongoliverli/Qwen2.5-3B-math8k-sft-distill-20epochs-5e-5lr-step250"
+    nick_name: "Qwen2.5-3B-math8k-sft-distill-step250"
+  
+  - model_name: "aochongoliverli/Qwen2.5-3B-math8k-sft-distill-20epochs-5e-5lr-step300"
+    nick_name: "Qwen2.5-3B-math8k-sft-distill-step300"
+  
+  # RL Zero Models
+  - model_name: "aochongoliverli/Qwen2.5-3B-math8k-dapo-20epochs-8rollouts-8192max-len-step50"
+    nick_name: "Qwen2.5-3B-math8k-dapo-step50"
+  
+  - model_name: "aochongoliverli/Qwen2.5-3B-math8k-dapo-20epochs-8rollouts-8192max-len-step100"
+    nick_name: "Qwen2.5-3B-math8k-dapo-step100"
+  
+  # - model_name: "aochongoliverli/Qwen2.5-3B-math8k-dapo-20epochs-8rollouts-8192max-len-step150"
+  #   nick_name: "Qwen2.5-3B-math8k-dapo-step150"
+  
+  # - model_name: "aochongoliverli/Qwen2.5-3B-math8k-dapo-20epochs-8rollouts-8192max-len-step200"
+  #   nick_name: "Qwen2.5-3B-math8k-dapo-step200"
+  
+  # - model_name: "aochongoliverli/Qwen2.5-3B-math8k-dapo-20epochs-8rollouts-8192max-len-step250"
+  #   nick_name: "Qwen2.5-3B-math8k-dapo-step250"
+  
+  # - model_name: "aochongoliverli/Qwen2.5-3B-math8k-dapo-20epochs-8rollouts-8192max-len-step300"
+  #   nick_name: "Qwen2.5-3B-math8k-dapo-step300"
+>>>>>>> Stashed changes

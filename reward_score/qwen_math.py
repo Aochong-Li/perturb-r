@@ -3,22 +3,43 @@ from pebble import ProcessPool
 from typing import Any
 from concurrent.futures import TimeoutError
 
-from qwen_eval.eval_utils.utils.grader import math_equal
-from qwen_eval.eval_utils.utils.parser import extract_answer
+# from qwen_eval.eval_utils.utils.grader import math_equal
+# from qwen_eval.eval_utils.utils.parser import extract_answer
 
-def eval_sample(args) -> tuple[int, Any]:
-    idx, ground_truth, model_pred, source = args
-    extracted_gt = extract_answer(ground_truth, source)
-    extracted_answer = extract_answer(model_pred, source)
+from qwen25_eval.grader import math_equal
+from qwen25_eval.parser import extract_answer
+
+def compute_score(solution_str, ground_truth) -> tuple[int, Any]:
+    extracted_gt = extract_answer(ground_truth, "math")
+    extracted_answer = extract_answer(solution_str, "math")
     
-    return idx, math_equal(extracted_answer, extracted_gt)
+    return math_equal(extracted_answer, extracted_gt)
 
-def parse_response_dataframe(input_df: pd.DataFrame, gt_col: str, response_col: str) -> pd.DataFrame:
-    df = input_df.copy()
 
-    df['pred'] = df[response_col].apply(lambda x: x.split('</think>')[-1].strip() if '</think>' in x else x)
-    df['gt'] = df[gt_col]
-    return df
+if __name__ == "__main__":
+    """
+    conda activate zero
+    python reward_score/qwen_math.py --file_path ./results/math8k/benchmark/QwQ-32Btrain.pickle
+    """
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--file_path", type=str, required=True)
+    args = parser.parse_args()
+
+    import pdb; pdb.set_trace()
+    df = pd.read_pickle(args.file_path)
+    from tqdm import tqdm
+    tqdm.pandas()
+    df["qwen_math_score"] = df.progress_apply(lambda x: compute_score(x["pred"], x["gt"]), axis=1)
+
+    df.to_pickle(args.file_path)
+
+# def parse_response_dataframe(input_df: pd.DataFrame, gt_col: str, response_col: str) -> pd.DataFrame:
+#     df = input_df.copy()
+
+#     df['pred'] = df[response_col].apply(lambda x: x.split('</think>')[-1].strip() if '</think>' in x else x)
+#     df['gt'] = df[gt_col]
+#     return df
     
     '''
     math_equal is not a reliable evaluation. so we only extract answer and ground truth from the response.

@@ -34,6 +34,7 @@ class BenchmarkEval(OpenLMEngine):
                  tensor_parallel_size: int = 1,
                  gpu_memory_utilization: float = 0.85,
                  dtype: str = "bfloat16",
+                 system_prompt: str = None, 
                  max_tokens: int = 16384,
                  temperature: float = 0.7,
                  top_p: float = 1.0,
@@ -63,6 +64,7 @@ class BenchmarkEval(OpenLMEngine):
         self.max_num_batched_tokens = max_num_batched_tokens
         self.client_name = client_name
         self.filename_suffix = filename_suffix
+        self.system_prompt = system_prompt
 
         # Create output directory if it doesn't exist
         os.makedirs(self.output_dir, exist_ok=True)
@@ -133,6 +135,9 @@ class BenchmarkEval(OpenLMEngine):
         chat_history = [
             {'role': 'user', 'content': question}
         ]
+        if self.system_prompt:
+            chat_history.insert(0, {'role': 'system', 'content': self.system_prompt})
+
         if not self.enable_thinking:
             tokenized_prompt = self.tokenizer.apply_chat_template(
                 chat_history,
@@ -238,5 +243,6 @@ if __name__=="__main__":
     
     engine = BenchmarkEval(
         **vars(args),
+        system_prompt=r"Please reason and put the final answer inside \\boxed{} tag."
     )
     engine.eval()

@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # Adapted from https://github.com/EleutherAI/lm-evaluation-harness/blob/main/lm_eval/tasks/hendrycks_math/utils.py
+import argparse
+import pandas as pd
+
 def math_verify_score(solution_str, ground_truth) -> float:
     from math_verify import verify, parse
 
@@ -248,3 +251,17 @@ def strip_string(string):
     string = fix_a_slash_b(string)
 
     return string
+
+if __name__ == "__main__":
+    """
+    conda activate zero
+    python reward_score/math500.py --file_path ./results/math8k/benchmark/QwQ-32Btrain.pickle
+    """
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--file_path", type=str, required=True)
+    args = parser.parse_args()
+
+    df = pd.read_pickle(args.file_path)
+    df["score"] = df.apply(lambda x: math_verify_score(x["pred"], x["gt"]), axis=1)
+    df.to_pickle(args.file_path)
+    

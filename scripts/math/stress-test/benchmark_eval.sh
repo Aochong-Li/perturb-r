@@ -4,10 +4,17 @@ export CUDA_VISIBLE_DEVICES=0,1
 
 # -------- static bits you rarely touch --------
 MODELS_YAML="config/control_study.yaml"
+<<<<<<< Updated upstream
 DATASET_NAME="hendrycks_math"
 SPLIT="train"
 SAMPLE_K=1
 DATASET_PATH="./data/${DATASET_NAME}"
+=======
+DATASET_NAME="math8k"
+SPLIT="train"
+SAMPLE_K=1
+DATASET_PATH="aochongoliverli/math8k"
+>>>>>>> Stashed changes
 OUTPUT_DIR="./results/${DATASET_NAME}/benchmark"
 # ----------------------------------------------
 
@@ -35,7 +42,11 @@ echo "$MODELS_INFO" | while IFS=, read -r model_name nick_name; do
     --tensor_parallel_size 2 \
     --gpu_memory_utilization 0.9 \
     --dtype bfloat16 \
+<<<<<<< Updated upstream
     --max_tokens 32768 \
+=======
+    --max_tokens 8192 \
+>>>>>>> Stashed changes
     --temperature 0.6 \
     --top_p 0.95 \
     --top_k -1 \
