@@ -6,7 +6,6 @@ from core.openai_engine import *
 
 import argparse
 from datasets import load_dataset, load_from_disk
-from reward_score.qwen_math import parse_response_dataframe
 from reward_score.math500 import math_if_boxed
 from reward_score.countdown import compute_score as countdown_compute_score, extract_solution as countdown_extract_solution
 
@@ -168,7 +167,9 @@ class BenchmarkEval(OpenLMEngine):
         self.df.to_pickle(self.output_filepath)
 
         # Evaluate results
-        self.result_df = parse_response_dataframe(self.df, 'solution', 'response')
+        self.result_df = self.df.copy()
+        self.result_df['pred'] = self.result_df['response'].apply(lambda x: x.split('</think>')[-1].strip() if '</think>' in x else x)
+        self.result_df['gt'] = self.result_df['solution']
         
         self.result_df['if_boxed'] = self.result_df['response'].apply(math_if_boxed)
         self.result_df.to_pickle(self.output_filepath)

@@ -1,14 +1,9 @@
 models:
   # - model_name: "aochongoliverli/Qwen2.5-1.5B-Zero-initial-checkpoint"
   #   nick_name: "Qwen2.5-1.5B-Zero-Base"
-<<<<<<< Updated upstream
-  
-  - model_name: "Qwen/QwQ-32B"
-    nick_name: "QwQ-32B"
-=======
     
-  - model_name: "Qwen/QwQ-32B"
-    nick_name: "QwQ-32B"
+  # - model_name: "Qwen/QwQ-32B"
+  #   nick_name: "QwQ-32B"
   
   # SFT Distilled Models
   - model_name: "aochongoliverli/Qwen2.5-3B-math8k-sft-distill-20epochs-5e-5lr-step50"
@@ -47,4 +42,3 @@ models:
   
   # - model_name: "aochongoliverli/Qwen2.5-3B-math8k-dapo-20epochs-8rollouts-8192max-len-step300"
   #   nick_name: "Qwen2.5-3B-math8k-dapo-step300"
->>>>>>> Stashed changes

@@ -34,12 +34,12 @@ if __name__ == "__main__":
 
     df.to_pickle(args.file_path)
 
-# def parse_response_dataframe(input_df: pd.DataFrame, gt_col: str, response_col: str) -> pd.DataFrame:
-#     df = input_df.copy()
+def parse_response_dataframe(input_df: pd.DataFrame, gt_col: str, response_col: str) -> pd.DataFrame:
+    df = input_df.copy()
 
-#     df['pred'] = df[response_col].apply(lambda x: x.split('</think>')[-1].strip() if '</think>' in x else x)
-#     df['gt'] = df[gt_col]
-#     return df
+    df['pred'] = df[response_col].apply(lambda x: x.split('</think>')[-1].strip() if '</think>' in x else x)
+    df['gt'] = df[gt_col]
+    return df
     
     '''
     math_equal is not a reliable evaluation. so we only extract answer and ground truth from the response.

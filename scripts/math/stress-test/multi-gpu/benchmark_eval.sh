@@ -7,8 +7,8 @@ MODEL=$2
 NICK=$3
 
 # -------- static bits you rarely touch --------
-DATASET_NAME="allmath"
-SAMPLE_K=8
+DATASET_NAME="math500"
+SAMPLE_K=4
 DATASET_PATH="./data/${DATASET_NAME}"
 OUTPUT_DIR="./results/${DATASET_NAME}/benchmark"
 # ----------------------------------------------
@@ -25,9 +25,8 @@ python benchmark_eval.py \
   --tensor_parallel_size  $(echo "$GPU_ID" | awk -F',' '{print NF}') \
   --gpu_memory_utilization 0.9 \
   --dtype                 bfloat16 \
-  --max_tokens            16384 \
-  --temperature           0.7 \
-  --top_p                 1.0 \
+  --max_tokens            8192 \
+  --temperature           0.6 \
+  --top_p                 0.95 \
   --top_k                -1 \
-  --sample_k             "$SAMPLE_K" \
-  --max_num_batched_tokens 8192
+  --sample_k             "$SAMPLE_K"
