@@ -1,13 +1,13 @@
 #!/bin/bash
 set -ex
-export CUDA_VISIBLE_DEVICES=0,1,2,3
+export CUDA_VISIBLE_DEVICES=0,1
 
 # -------- static bits you rarely touch --------
 MODELS_YAML="config/control_study.yaml"
-DATASET_NAME="math8k"
-SPLIT="train"
-SAMPLE_K=1
-DATASET_PATH="aochongoliverli/math8k"
+DATASET_NAME="math500"
+SPLIT="test"
+SAMPLE_K=4
+DATASET_PATH="./data/${DATASET_NAME}"
 OUTPUT_DIR="./results/${DATASET_NAME}/benchmark"
 # ----------------------------------------------
 
