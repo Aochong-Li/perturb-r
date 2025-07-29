@@ -15,7 +15,6 @@ from transformers import AutoModelForCausalLM
 from core.llm_engine import *
 from core.openai_engine import *
 
-from reward_score.qwen_math import parse_response_dataframe
 from reward_score.math500 import math_if_boxed
 from utils.chunk_r import equal_chunk
 from utils.corrupt_num import *
@@ -38,7 +37,7 @@ class CorruptNumbers(OpenLMEngine):
                  top_p: float = 1.0,
                  top_k: int = -1,
                  max_num_batched_tokens: int = 8192,
-                 mini_batch_size: int = 32,
+                 mini_batch_size: int = None,
                  granularity: int = 30,
                  overwrite: bool = False,
                  how: str = "fixed",
@@ -235,7 +234,7 @@ class CorruptNumbers(OpenLMEngine):
 
     def local_eval(self) -> None:
         self.responses = []
-        for batch in chunked(list(self.df["prompt"]), self.mini_batch_size):
+        for batch in chunked(list(self.df["prompt"]), self.mini_batch_size if self.mini_batch_size is not None else len(self.df)):
             new_sampling_params = [
                 {
                     "max_tokens": min(self.max_tokens, self.max_position_embeddings - len(self.tokenizer.encode(prompt)) - 1)
@@ -285,8 +284,11 @@ class CorruptNumbers(OpenLMEngine):
         output_path = os.path.join(self.output_dir, f"{self.nick_name}.pickle")
         self.df.to_pickle(output_path)
 
-        self.result_df = parse_response_dataframe(self.df, 'solution', 'post_corruption_response')
-        self.result_df['if_boxed'] = self.result_df['post_corruption_response'].apply(math_if_boxed)
+        self.result_df = self.df.copy()
+        self.result_df['pred'] = self.result_df['post_corruption_response'].apply(lambda x: x.split('</think>')[-1].strip() if '</think>' in x else x)
+        self.result_df['gt'] = self.result_df['solution']
+        self.result_df['if_boxed'] = self.result_df['pred'].apply(math_if_boxed)
+
         self.result_df.to_pickle(output_path)
 
 if __name__=="__main__":
@@ -316,7 +318,7 @@ if __name__=="__main__":
     parser.add_argument("--max_num_batched_tokens", type=int, default=8192,
                         help="Maximum number of tokens to batch")
 
-    parser.add_argument("--mini_batch_size", type=int, default=128,
+    parser.add_argument("--mini_batch_size", type=int, default=None,
                         help="Mini batch size for local evaluation")
     parser.add_argument("--granularity", type=int, default=30,
                         help="Granularity of the reasoning chunks")
@@ -335,6 +337,7 @@ if __name__=="__main__":
                         help="Overwrite existing results")
     
     args = parser.parse_args()
+    
     engine = CorruptNumbers(
         **vars(args),
     )

@@ -7,8 +7,8 @@ MODEL=$2
 NICK=$3
 
 # -------- static bits you rarely touch --------
-DATASET_NAME="math500"
-SAMPLE_K=4
+DATASET_NAME="math500amc23"
+SAMPLE_K=8
 DATASET_PATH="./data/${DATASET_NAME}"
 OUTPUT_DIR="./results/${DATASET_NAME}/benchmark"
 # ----------------------------------------------

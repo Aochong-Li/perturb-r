@@ -11,7 +11,6 @@ from transformers import AutoModelForCausalLM, AutoConfig, AutoTokenizer
 from core.llm_engine import *
 from core.openai_engine import *
 
-from reward_score.qwen_math import parse_response_dataframe
 from reward_score.math500 import math_if_boxed
 from utils.chunk_r import equal_chunk
 from utils.corrupt_num import *
@@ -146,37 +145,36 @@ class InjectDistractor(OpenLMEngine):
         self.distractors["reasoning_chunks"] = self.distractors['response'].apply(lambda x: x.split("</think>")[0] if "</think>" in x else x)
         self.distractors["reasoning_chunks"] = self.distractors["reasoning_chunks"].apply(lambda x: equal_chunk(x, self.granularity))
         
-        # make distracting reasoning roughly similar to the original reasoning
         stats = self.df["reasoning_chunks"].str.len().describe([.8, .9])
         min_chunks, max_chunks = int(stats['80%']), int(stats['90%'])
         self.distractors = self.distractors[self.distractors['reasoning_chunks'].str.len() >= min_chunks]
         self.distractors['reasoning_chunks'] = self.distractors['reasoning_chunks'].apply(lambda x: x[:max_chunks])
         
-        self.solve_none_distractor = (
-            self.distractors[self.distractors['problem'].isin(self.rate[self.rate['solve_n'] == 0]['problem'])] \
-                .drop_duplicates(subset = 'problem') \
-                    .sample(n = self.num_distract_candidates // 2, random_state = 42, replace = True) \
+        # Add solve_n information for each distractor problem
+        distractor_solve_info = self.rate[['problem', 'solve_n']].rename(columns={'problem': 'distractor_problem', 'solve_n': 'distractor_solve_n'})
+        
+        # Randomly sample distractors without considering solve rate
+        self.distractors = (
+            self.distractors
+                .drop_duplicates(subset = 'problem')
+                    .sample(n = self.num_distract_candidates, random_state = 42, replace = True)
                         .reset_index(drop = True)
         )
-        self.solve_none_distractor['distractor_solve_rate'] = 0
         
-        self.solve_all_distractor = (
-            self.distractors[self.distractors['problem'].isin(self.rate[self.rate['solve_n'] == self.k]['problem'])] \
-                .drop_duplicates(subset = 'problem') \
-                    .sample(n = self.num_distract_candidates // 2, random_state = 42, replace = True) \
-                        .reset_index(drop = True)
-        )
-        self.solve_all_distractor['distractor_solve_rate'] = 1
-        
-        columns = [ 'problem', 'solution', 'source', 'reasoning_chunks', 'distractor_solve_rate']
-        self.distractors = pd.concat([self.solve_none_distractor, self.solve_all_distractor], axis = 0)[columns] \
+        columns = ['problem', 'solution', 'source', 'reasoning_chunks']
+        self.distractors = self.distractors[columns] \
             .rename(columns = {
                 'problem': 'distractor_problem',
                 'solution': 'distractor_solution',
                 'source': 'distractor_source',
-                'reasoning_chunks': 'distractor_reasoning_chunks',
-                'distractor_solve_rate': 'distractor_solve_rate'
+                'reasoning_chunks': 'distractor_reasoning_chunks'
             })
+        
+        # Merge with solve_n information
+        self.distractors = self.distractors.merge(
+            distractor_solve_info[['distractor_problem', 'distractor_solve_n']],
+             on='distractor_problem', how='left'
+             )
         
     def generate_distract_reasoning(self, row):
         original_ratio = row["original_ratio"]
@@ -265,8 +263,11 @@ class InjectDistractor(OpenLMEngine):
         output_path = os.path.join(self.output_dir, f"{self.nick_name}.pickle")
         self.df.to_pickle(output_path)
 
-        self.result_df = parse_response_dataframe(self.df, 'solution', 'post_distraction_response')
-        self.result_df['if_boxed'] = self.result_df['post_distraction_response'].apply(math_if_boxed)
+        self.result_df = self.df.copy()
+        self.result_df['pred'] = self.result_df['post_distraction_response'].apply(lambda x: x.split('</think>')[-1].strip() if '</think>' in x else x)
+        self.result_df['gt'] = self.result_df['solution']
+        self.result_df['if_boxed'] = self.result_df['pred'].apply(math_if_boxed)
+        
         self.result_df.to_pickle(output_path)
 
 if __name__=="__main__":
@@ -281,6 +282,7 @@ if __name__=="__main__":
                         help="Number of problems to sample for the stress test")
     parser.add_argument("--num_distract_candidates", type=int, default=20,
                         help="Number of problems to use as distractors")
+    
     parser.add_argument("--tensor_parallel_size", type=int, default=1,
                         help="Number of GPUs for tensor parallelism")
     parser.add_argument("--gpu_memory_utilization", type=float, default=0.85,
@@ -297,6 +299,7 @@ if __name__=="__main__":
                         help="Top-k sampling parameter")
     parser.add_argument("--max_num_batched_tokens", type=int, default=8192,
                         help="Maximum number of tokens in a batch")
+    
     parser.add_argument("--mini_batch_size", type=int, default=None,
                         help="Mini batch size for generation")
     parser.add_argument("--granularity", type=int, default=30,
@@ -309,7 +312,6 @@ if __name__=="__main__":
                         help="Name of the client (for OpenAI or other APIs)")
 
     args = parser.parse_args()
-    
     engine = InjectDistractor(
         **vars(args),
     )

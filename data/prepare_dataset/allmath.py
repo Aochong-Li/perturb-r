@@ -15,6 +15,7 @@ def read_jsonl(path):
     with open(path, 'r', encoding='utf-8') as f:
         for line in f:
             yield json.loads(line)
+            
 def rename_columns(row, source):
     if source == "aime24" or source == "aime25" or source == "amc23" or source == "math500":
         row['problem'] = str(row['problem'])
@@ -29,9 +30,9 @@ def rename_columns(row, source):
 def main():
     """
     python data/prepare_dataset/allmath.py \
-        --output_dir ./data/amc23 \
+        --output_dir ./data/math500amc23 \
         --dataset_dir ../rlvr/Qwen2.5-Eval/evaluation/data \
-        --datasets amc23
+        --datasets amc23 math500
     """    
     parser = argparse.ArgumentParser(description='Prepare allmath dataset')
     parser.add_argument('--output_dir', default='./data/allmath', 

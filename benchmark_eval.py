@@ -40,7 +40,7 @@ class BenchmarkEval(OpenLMEngine):
                  top_k: int = 0,
                  sample_k: int = 1,
                  enable_thinking: bool = True,
-                 max_num_batched_tokens: int = 32768,
+                 max_num_batched_tokens: int = 8192,
                  overwrite: bool = False,
                  client_name: str = '',
                  filename_suffix: str = ''
@@ -236,7 +236,7 @@ if __name__=="__main__":
                         help="Overwrite existing results")
     parser.add_argument("--enable_thinking", type=str2bool, default=True,
                         help="Enable thinking")
-    parser.add_argument("--max_num_batched_tokens", type=int, default=32768,
+    parser.add_argument("--max_num_batched_tokens", type=int, default=8192,
                         help="Maximum number of tokens to batch")
     parser.add_argument("--client_name", type=str, default='',
                         help="Name of the client to use")

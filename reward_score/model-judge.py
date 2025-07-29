@@ -6,6 +6,8 @@ import re
 import os
 import time
 
+from reward_score.math500 import math_verify_score, math_if_boxed
+
 PROMPT_TEMPLATE = """### System Prompt
 You are an experienced examiner who evaluates whether a student's answer to a given question is correct. 
 Your task is to determine if the student's final answer matches the standard answer provided, based solely on correctness and the question's specific requirements. 
@@ -60,10 +62,12 @@ class ModelJudge():
 
     def extract_pred(self, row):
         pred = row[self.pred_col]
-        if pred != "":
+        response = row[self.response_col]
+        if "\\boxed{" in pred:
             return pred
-        return row[self.response_col]    
-    
+        else:
+            return response
+
     def extract_label(self, row):
         raw_response = row['model_judge']
 
@@ -72,22 +76,27 @@ class ModelJudge():
 
         match = re.search(pattern, response)
         if match and match.group(1) == "correct":
-            return True
+            return 1.0
         elif match and match.group(1) == "wrong":
-            return False
+            return 0.0
         elif "CORRECT" in raw_response and "WRONG" not in raw_response:
-            return True
+            return 1.0
         elif "WRONG" in raw_response and "CORRECT" not in raw_response:
-            return False
+            return 0.0
         else:
-            return None
+            return 0.0
 
     def run(self, overwrite: bool = True) -> pd.DataFrame:
         self.eval_df = self.input_df.copy()
-        self.eval_df['model_pred'] = self.eval_df.apply(self.extract_pred, axis=1)
+        self.eval_df['model_is_correct'] = self.eval_df.apply(lambda x: math_verify_score(x[self.response_col], x[self.solution_col]), axis=1)
+        self.correct_subset = self.eval_df[self.eval_df['model_is_correct'] == 1.0]
+        
+        self.wrong_subset  = self.eval_df[(self.eval_df['model_is_correct'] == 0.0) & self.eval_df["if_boxed"]].reset_index(drop=True)
+        self.wrong_subset['model_pred'] = self.wrong_subset.apply(self.extract_pred, axis=1)
+        self.wrong_subset = self.wrong_subset.drop(columns = ['model_is_correct'])
         
         engine = OpenAI_Engine(
-            input_df=self.eval_df,
+            input_df=self.wrong_subset,
             prompt_template=PROMPT_TEMPLATE,
             template_map={"problem": self.problem_col, "solution": self.solution_col, "model_pred": "model_pred"},
             nick_name=f"model_judge_{self.nick_name}",
@@ -96,34 +105,33 @@ class ModelJudge():
             model = "deepseek-chat",
             client_name = "deepseek"
         )
-
         engine.run_model(overwrite=overwrite)
         self.response = engine.retrieve_outputs()
         if 'response' in self.response.columns:
             self.response = self.response.set_index('idx').rename(columns={'response': 'model_judge'})
             self.response = self.response.explode(['model_judge'])
-        
+
         self.response['model_is_correct'] = self.response.apply(self.extract_label, axis=1)
         self.response.to_pickle(self.output_dir + f"/{self.nick_name}_model_judge.pickle")
-        
         return self.response
     
     def merge(self) -> pd.DataFrame:
-        self.eval_df = self.eval_df.merge(self.response[['model_judge', 'model_is_correct']], left_index=True, right_index=True)
-    
-        return self.eval_df
+        self.wrong_subset = self.wrong_subset.merge(self.response[['model_is_correct']], left_index=True, right_index=True)
+        self.result_df = pd.concat([self.correct_subset, self.wrong_subset], axis=0, ignore_index=True)
+
+        return self.result_df
     
 if __name__ == "__main__":
     """
     Example usage:
-    python model-judge.py \
-      --input_filepath ./results/allmath/benchmark/R1-Distill-Qwen-32B.pickle \
-      --output_dir ./results/allmath/benchmark/model_judge \
-      --nick_name R1-Distill-Qwen-32B
+    python reward_score/model-judge.py \
+      --input_filepath ./results/math500amc23/benchmark/Qwen2.5-3B-math8k-sft-distill-step100.pickle \
+      --output_dir ./results/math500amc23/benchmark/model_judge \
+      --nick_name Qwen2.5-3B-math8k-sft-distill-step100
 
-    python model-judge.py \
-      --input_dir ./results/math500/benchmark \
-      --output_dir ./results/math500/benchmark/model_judge
+    python reward_score/model-judge.py \
+      --input_dir ./results/math500amc23/corrupt_numbers_fixed_window \
+      --output_dir ./results/math500amc23/corrupt_numbers_fixed_window/model_judge
     """
 
     parser = argparse.ArgumentParser(
@@ -138,8 +146,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
     problem_col = "problem"
     solution_col = "gt"
-    response_col = "response"
     pred_col = "pred"
+    response_col = "response"
     
     if args.input_filepath:
         input_df = pd.read_pickle(args.input_filepath)
@@ -152,6 +160,7 @@ if __name__ == "__main__":
             output_dir=args.output_dir,
             nick_name=args.nick_name
         )
+        import pdb; pdb.set_trace()
         judge_engine.run(overwrite=args.overwrite)
         result_df = judge_engine.merge()
         result_df.to_pickle(os.path.join(args.output_dir, f"{args.nick_name}_result.pickle"))
@@ -169,7 +178,7 @@ if __name__ == "__main__":
                     input_df = pd.read_pickle(os.path.join(args.input_dir, fname))
                     nick_name = fname.replace(".pickle", "")
                     
-                    if not args.overwrite and "model_is_correct" in input_df.columns:
+                    if not args.overwrite and os.path.exists(os.path.join(args.output_dir, f"{nick_name}_model_judge.pickle")):
                         print(f"Skipping {nick_name} because it already exists")
                         finished.append(nick_name)
                         continue

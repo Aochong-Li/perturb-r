@@ -14,18 +14,84 @@
 # Adapted from https://github.com/EleutherAI/lm-evaluation-harness/blob/main/lm_eval/tasks/hendrycks_math/utils.py
 import argparse
 import pandas as pd
+import os
+import re
 
-def math_verify_score(solution_str, ground_truth) -> float:
+def math_verify_score(solution_str: str, ground_truth: str, response_str: str = None) -> float:
     from math_verify import verify, parse
 
-    try:
-        mathv_pred = parse(solution_str)
-        mathv_correct = verify(parse(str(ground_truth)), mathv_pred, float_rounding=6, numeric_precision=15, strict=True)
-    except Exception:
-        mathv_correct = False
+    def multi_verify (solution_str: str, ground_truth:str):
+        # math verify package
+        try:
+            mathv_pred = parse(solution_str)
+            mathv_correct = verify(parse(str(ground_truth)), mathv_pred, float_rounding=6, numeric_precision=15)
+        except Exception:
+            mathv_correct = False
+        
+        # rule based verify
+        try:
+            rule_correct = compute_score(solution_str, ground_truth)
+        except Exception:
+            rule_correct = False
+        
+        # simple verify
+        simple_correct = solution_str == ground_truth
     
-    return mathv_correct
+        return mathv_correct or rule_correct or simple_correct
 
+    if math_if_boxed(solution_str): 
+        solution_str = solution_str
+    else:
+        solution_str = response_str
+            
+    if multi_verify(solution_str, ground_truth):
+        return 1.0
+    
+    # Below are post-processing HACKs for MATH-500 dataset
+    if re.fullmatch(r"\\text{.*?}", ground_truth):
+        ground_truth = ground_truth.replace("\\text{", "").replace("}", "")
+        if multi_verify(solution_str, ground_truth):
+            return 1.0
+    
+        if re.match(r"\(([A-Z])\)", ground_truth):
+            ground_truth = re.match(r"\(([A-Z])\)", ground_truth).group(1)
+        if multi_verify(solution_str, ground_truth):
+            return 1.0
+
+    if "\\dfrac" in solution_str or "\\dfrac" in ground_truth:
+        solution_str = solution_str.replace("\\dfrac", "\\frac")
+        ground_truth = ground_truth.replace("\\dfrac", "\\frac")
+
+    if "\\frac" in solution_str or "\\frac" in ground_truth:
+        pattern = r'\\frac\{([^{}]+)\}\{([^{}]+)\}'
+        replacement = r'\1/\2'
+        solution_str = re.sub(pattern, replacement, solution_str)
+        ground_truth = re.sub(pattern, replacement, ground_truth)
+        if multi_verify(solution_str, ground_truth):
+            return 1.0
+        
+    if ",\\!" in solution_str or ",\\!" in ground_truth:
+        solution_str = solution_str.replace(",\\!", "")
+        ground_truth = ground_truth.replace(",\\!", "")
+        if multi_verify(solution_str, ground_truth):
+            return 1.0
+    
+    if "\\in" in ground_truth:
+        ground_truth = ground_truth.split("\\in")[-1].strip()
+        if multi_verify(solution_str, ground_truth):
+            return 1.0
+            
+    if "," in ground_truth and "," in solution_str:
+        try:
+            solution = remove_boxed(last_boxed_only_string(solution_str))
+            solution = set(solution.split(","))
+            ground_truth = set(ground_truth.split(","))
+            if solution == ground_truth:
+                return 1.0
+        except:
+            pass
+    
+    return 0.0
 
 def math_if_boxed(solution_str) -> bool:
     try:
@@ -255,13 +321,43 @@ def strip_string(string):
 if __name__ == "__main__":
     """
     conda activate zero
-    python reward_score/math500.py --file_path ./results/math8k/benchmark/QwQ-32Btrain.pickle
+    python reward_score/math500.py --file_path ./results/math500amc23/benchmark
+    python reward_score/math500.py --input_dir ./results/math500amc23/inject_distractor --overwrite
     """
     parser = argparse.ArgumentParser()
-    parser.add_argument("--file_path", type=str, required=True)
+    parser.add_argument("--file_path", type=str, required=False)
+    parser.add_argument("--input_dir", type=str, required=False)
+    parser.add_argument("--overwrite", action="store_true")
     args = parser.parse_args()
+    source = args.input_dir if args.input_dir else args.file_path
 
-    df = pd.read_pickle(args.file_path)
-    df["score"] = df.apply(lambda x: math_verify_score(x["pred"], x["gt"]), axis=1)
-    df.to_pickle(args.file_path)
+    pred_col = "pred"
+    gt_col = "gt"
+    if "benchmark" in source:
+        response_col = "response"
+    elif "corrupt" in source:
+        response_col = "post_corruption_response"
     
+    if args.file_path:
+        df = pd.read_pickle(args.file_path)
+        df["model_is_correct"] = df.apply(lambda x: math_verify_score(x["pred"], x["gt"], x["response"]), axis=1)
+        df.to_pickle(args.file_path)
+
+    else:
+        for fname in os.listdir(args.input_dir):
+            if fname.endswith(".pickle"):
+                print("Evaluating {}".format(fname))
+                df = pd.read_pickle(os.path.join(args.input_dir, fname))
+                
+                if ("model_is_correct" in df.columns 
+                    or "original_correct" in df.columns 
+                    or "distractor_correct" in df.columns) and not args.overwrite:
+                    print("Skipping {} because it already has model_is_correct column".format(fname))
+                    continue
+                if "distract" in source:
+                    df["original_correct"] = df.apply(lambda x: math_verify_score(x["pred"], x["solution"], x["post_distraction_response"]), axis=1)
+                    df["distractor_correct"] = df.apply(lambda x: math_verify_score(x["pred"], x["distractor_solution"], x["post_distraction_response"]), axis=1)
+                else:
+                    df["model_is_correct"] = df.apply(lambda x: math_verify_score(x[pred_col], x[gt_col], x[response_col]), axis=1)
+
+                df.to_pickle(os.path.join(args.input_dir, fname))

@@ -6,23 +6,56 @@ models:
   #   nick_name: "QwQ-32B"
   
   # SFT Distilled Models
-  # - model_name: "aochongoliverli/Qwen2.5-3B-math8k-sft-distill-20epochs-5e-5lr-step50"
-  #   nick_name: "Qwen2.5-3B-math8k-sft-distill-step50"
+  - model_name: "aochongoliverli/Qwen2.5-3B-math8k-sft-distill-20epochs-5e-5lr-step50"
+    nick_name: "Qwen2.5-3B-math8k-sft-distill-step50"
   
-  # - model_name: "aochongoliverli/Qwen2.5-3B-math8k-sft-distill-20epochs-5e-5lr-step100"
-  #   nick_name: "Qwen2.5-3B-math8k-sft-distill-step100"
+  - model_name: "aochongoliverli/Qwen2.5-3B-math8k-sft-distill-20epochs-5e-5lr-step100"
+    nick_name: "Qwen2.5-3B-math8k-sft-distill-step100"
   
-  # - model_name: "aochongoliverli/Qwen2.5-3B-math8k-sft-distill-20epochs-5e-5lr-step150"
-  #   nick_name: "Qwen2.5-3B-math8k-sft-distill-step150"
+  - model_name: "aochongoliverli/Qwen2.5-3B-math8k-sft-distill-20epochs-5e-5lr-step150"
+    nick_name: "Qwen2.5-3B-math8k-sft-distill-step150"
   
-  # - model_name: "aochongoliverli/Qwen2.5-3B-math8k-sft-distill-20epochs-5e-5lr-step200"
-  #   nick_name: "Qwen2.5-3B-math8k-sft-distill-step200"
+  - model_name: "aochongoliverli/Qwen2.5-3B-math8k-sft-distill-20epochs-5e-5lr-step200"
+    nick_name: "Qwen2.5-3B-math8k-sft-distill-step200"
   
-  # - model_name: "aochongoliverli/Qwen2.5-3B-math8k-sft-distill-20epochs-5e-5lr-step250"
-  #   nick_name: "Qwen2.5-3B-math8k-sft-distill-step250"
+  - model_name: "aochongoliverli/Qwen2.5-3B-math8k-sft-distill-20epochs-5e-5lr-step250"
+    nick_name: "Qwen2.5-3B-math8k-sft-distill-step250"
   
-  # - model_name: "aochongoliverli/Qwen2.5-3B-math8k-sft-distill-20epochs-5e-5lr-step300"
-  #   nick_name: "Qwen2.5-3B-math8k-sft-distill-step300"
+  - model_name: "aochongoliverli/Qwen2.5-3B-math8k-sft-distill-20epochs-5e-5lr-step300"
+    nick_name: "Qwen2.5-3B-math8k-sft-distill-step300"
+
+  # SFT cold start models
+
+  - model_name: "aochongoliverli/Qwen2.5-3B-Zero-Base-math8k-coldstart-5epochs-5e-5lr-step50"
+    nick_name: "Qwen2.5-3B-Zero-Base-math8k-coldstart-step50"
+
+  - model_name: "aochongoliverli/Qwen2.5-3B-Zero-Base-math8k-coldstart-5epochs-5e-5lr-step100"
+    nick_name: "Qwen2.5-3B-Zero-Base-math8k-coldstart-step100"
+
+  - model_name: "aochongoliverli/Qwen2.5-3B-Zero-Base-math8k-coldstart-5epochs-5e-5lr-step150"
+    nick_name: "Qwen2.5-3B-Zero-Base-math8k-coldstart-step150"
+
+  - model_name: "aochongoliverli/Qwen2.5-3B-Zero-Base-math8k-coldstart-5epochs-5e-5lr-step200"
+    nick_name: "Qwen2.5-3B-Zero-Base-math8k-coldstart-step200"
+  
+# SFT + RL models
+  - model_name: "aochongoliverli/Qwen2.5-3B-math8k-sft-distill-150steps-dapo-10epochs-8rollouts-8192max-len-step20"
+    nick_name: "Qwen2.5-3B-sft-step150-rl-step20"
+
+  - model_name: "aochongoliverli/Qwen2.5-3B-math8k-sft-distill-150steps-dapo-10epochs-8rollouts-8192max-len-step40"
+    nick_name: "Qwen2.5-3B-sft-step150-rl-step40"
+
+  - model_name: "aochongoliverli/Qwen2.5-3B-math8k-sft-distill-150steps-dapo-10epochs-8rollouts-8192max-len-step60"
+    nick_name: "Qwen2.5-3B-sft-step150-rl-step60"
+
+  - model_name: "aochongoliverli/Qwen2.5-3B-math8k-sft-distill-150steps-dapo-10epochs-8rollouts-8192max-len-step80"
+    nick_name: "Qwen2.5-3B-sft-step150-rl-step80"
+
+  - model_name: "aochongoliverli/Qwen2.5-3B-math8k-sft-distill-150steps-dapo-10epochs-8rollouts-8192max-len-step100"
+    nick_name: "Qwen2.5-3B-sft-step150-rl-step100"
+
+  - model_name: "aochongoliverli/Qwen2.5-3B-math8k-sft-distill-150steps-dapo-10epochs-8rollouts-8192max-len-step120"
+    nick_name: "Qwen2.5-3B-sft-step150-rl-step120"
   
   # # RL Zero Models
   # - model_name: "aochongoliverli/Qwen2.5-3B-math8k-dapo-20epochs-8rollouts-8192max-len-step50"
@@ -42,7 +75,8 @@ models:
   
   # - model_name: "aochongoliverli/Qwen2.5-3B-math8k-dapo-20epochs-8rollouts-8192max-len-step300"
   #   nick_name: "Qwen2.5-3B-math8k-dapo-step300"
-
+  
   # SimpleZoo Models
-  - model_name: "hkust-nlp/Qwen-2.5-7B-SimpleRL-Zoo"
-    nick_name: "Qwen-2.5-7B-SimpleRL-Zoo"
+  # - model_name: "hkust-nlp/Qwen-2.5-7B-SimpleRL-Zoo"
+  #   nick_name: "Qwen-2.5-7B-SimpleRL-Zoo"
+  #   gpus: 2
