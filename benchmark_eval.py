@@ -101,7 +101,7 @@ class BenchmarkEval(OpenLMEngine):
                 max_num_batched_tokens=self.max_num_batched_tokens
             )
             # Download model weights if not already downloaded
-            _ = AutoModelForCausalLM.from_pretrained(self.model_name, trust_remote_code=True)
+            # _ = AutoModelForCausalLM.from_pretrained(self.model_name, trust_remote_code=True)
             # Initialize parent class
             super().__init__(config=config)
             self.tokenizer = AutoTokenizer.from_pretrained(model_name)
