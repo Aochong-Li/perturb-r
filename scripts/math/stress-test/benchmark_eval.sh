@@ -1,13 +1,13 @@
 #!/bin/bash
 set -ex
-export CUDA_VISIBLE_DEVICES=0,1
+export CUDA_VISIBLE_DEVICES=0,1,2,3
 
 # -------- static bits you rarely touch --------
-MODELS_YAML="config/control_study.yaml"
-DATASET_NAME="math500"
-SPLIT="test"
+MODELS_YAML="config/market_models.yaml"
+DATASET_NAME="math8k"
+SPLIT="train"
 SAMPLE_K=4
-DATASET_PATH="./data/${DATASET_NAME}"
+DATASET_PATH="aochongoliverli/math8k"
 OUTPUT_DIR="./results/${DATASET_NAME}/benchmark"
 # ----------------------------------------------
 
@@ -31,8 +31,7 @@ echo "$MODELS_INFO" | while IFS=, read -r model_name nick_name; do
     --dataset_name_or_path $DATASET_PATH \
     --split_name $SPLIT \
     --output_dir $OUTPUT_DIR \
-    --filename_suffix $SPLIT \
-    --tensor_parallel_size 2 \
+    --tensor_parallel_size 4 \
     --gpu_memory_utilization 0.9 \
     --dtype bfloat16 \
     --max_tokens 8192 \
