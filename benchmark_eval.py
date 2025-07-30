@@ -75,7 +75,7 @@ class BenchmarkEval(OpenLMEngine):
         elif "qwen3" not in self.nick_name.lower() and not self.enable_thinking:
             print(f"No-Thinking mode is not supported for {self.nick_name}")
             exit()
-        
+
         # Load dataset
         self.load_dataset(
             dataset_name_or_path,
@@ -117,6 +117,13 @@ class BenchmarkEval(OpenLMEngine):
             split_name: Split name (e.g., 'train', 'test')
             sample_size: Number of samples to use, if None use all
         """
+        # HACK
+        self.prior_df = pd.read_pickle(self.output_filepath)
+        self.prior_df, self.df = self.prior_df[self.prior_df['model_is_correct'] == 1.0].reset_index(drop=True), self.prior_df[self.prior_df['model_is_correct'] == 0.0].reset_index(drop=True)
+        self.prior_df, self.df = self.prior_df.drop(columns=['model_is_correct']), self.df.drop(columns=['response', 'pred', 'gt', 'model_is_correct', 'if_boxed'])
+
+        return 
+
         try:
             dataset = load_from_disk(dataset_name)[split_name]
         except Exception as e:
@@ -158,13 +165,14 @@ class BenchmarkEval(OpenLMEngine):
             self.local_eval()
         else:
             self.api_eval()
-        
+
         self.df = self.df.loc[np.repeat(self.df.index, self.sample_k)].reset_index(drop=True)
         self.response.index = self.df.index
         self.df = pd.concat([self.df, self.response], axis=1)
 
         # Save results
-        self.df.to_pickle(self.output_filepath)
+        # HACK
+        # self.df.to_pickle(self.output_filepath)
 
         # Evaluate results
         self.result_df = self.df.copy()
@@ -172,6 +180,10 @@ class BenchmarkEval(OpenLMEngine):
         self.result_df['gt'] = self.result_df['solution']
         
         self.result_df['if_boxed'] = self.result_df['response'].apply(math_if_boxed)
+
+        # HACK
+        self.result_df = pd.concat([self.prior_df, self.result_df], ignore_index=True)
+        #
         self.result_df.to_pickle(self.output_filepath)
         
     def api_eval(self) -> None:

@@ -34,9 +34,10 @@ echo "$MODELS_INFO" | while IFS=, read -r model_name nick_name; do
     --tensor_parallel_size 2 \
     --gpu_memory_utilization 0.9 \
     --dtype bfloat16 \
-    --max_tokens 8192 \
+    --max_tokens 16384 \
     --temperature 0.6 \
     --top_p 0.95 \
     --top_k -1 \
-    --sample_k $SAMPLE_K
+    --sample_k $SAMPLE_K \
+    --overwrite True
 done 
