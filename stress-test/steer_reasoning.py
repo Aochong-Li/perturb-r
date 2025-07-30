@@ -26,7 +26,6 @@ class SteerReasoning(OpenLMEngine):
         tokenizer_name: str,
         results_dir: str,
         sample_size: int,
-        num_distract_candidates: int,
         tensor_parallel_size: int = 1,
         gpu_memory_utilization: float = 0.85,
         dtype: str = "bfloat16",
@@ -37,7 +36,7 @@ class SteerReasoning(OpenLMEngine):
         max_num_batched_tokens: int = 8192,
         mini_batch_size: int = None,
         granularity: int = 30,
-        unit: float = 0.2,
+        unit: float = 0.1,
         overwrite: bool = False,
         client_name: str = "",
         **kwargs,
@@ -48,7 +47,6 @@ class SteerReasoning(OpenLMEngine):
         self.tokenizer_name = tokenizer_name
         self.results_dir = results_dir
         self.sample_size = sample_size
-        self.num_distract_candidates = num_distract_candidates
         self.tensor_parallel_size = tensor_parallel_size
         self.gpu_memory_utilization = gpu_memory_utilization
         self.dtype = dtype
@@ -64,12 +62,12 @@ class SteerReasoning(OpenLMEngine):
         self.client_name = client_name
 
         # Create output directory if it doesn't exist
-        self.output_dir = os.path.join(self.results_dir, "inject_distractor")
+        self.output_dir = os.path.join(self.results_dir, "steer_reasoning")
         os.makedirs(self.output_dir, exist_ok=True)
         
         out_pickle = os.path.join(self.output_dir, f"{self.nick_name}.pickle")
         if os.path.exists(out_pickle) and not self.overwrite:
-            print(f"Stress test (Inject Distractor) already exists: {self.nick_name}")
+            print(f"Stress test (Steer Reasoning) already exists: {self.nick_name}")
             exit()
         
         cfg = AutoConfig.from_pretrained(self.model_name, trust_remote_code=True)
@@ -93,16 +91,33 @@ class SteerReasoning(OpenLMEngine):
             )
 
             # Initialize parent class
-            # super().__init__(config=config)
+            super().__init__(config=config)
         
         self.load_dataset()
     
-        print(f"Start stress testing: {self.nick_name} on distractor injection")
+        print(f"Start stress testing: {self.nick_name} on steering reasoning")
+    
+    @staticmethod
+    def inverse_sampling(in_df: pd.DataFrame, col: str, size: int) -> pd.DataFrame:
+        df = in_df.copy()
+        freq = df.groupby(col).size().reset_index().rename(columns = {0: "count"})
+        freq["weight"] = 1.0 / freq[col]
+        freq["weight"] = freq["weight"] / freq["weight"].sum()
+        df = df.merge(freq, on = col)
+        df = df.sample(
+            n = min(size, len(df)),
+            weights = "weight",
+            replace = False,
+            random_state = 42
+            ).reset_index(drop = True).drop(columns = ["count", "weight"])
+
+        return df
 
     def load_dataset(self) -> None:
         self.dataset_path = os.path.join(self.results_dir, "benchmark", f"{self.nick_name}.pickle")
         self.df = pd.read_pickle(self.dataset_path)[["problem", "solution", "source", "response", "model_is_correct"]]
         self.k = self.df.groupby('problem').size().max()
+        self.steer_size = self.sample_size // 2
         
         self.rate = self.df.groupby('problem').agg({'model_is_correct': 'sum'}).reset_index().rename(columns = {"model_is_correct": "solve_n"})
         self.df = self.df.merge(self.rate, on = 'problem')
@@ -113,20 +128,20 @@ class SteerReasoning(OpenLMEngine):
         correct_df["steer_source"] = "correct"
         incorrect_df = self.df[self.df['model_is_correct'] == 0].reset_index(drop = True).rename(columns = {'response': 'incorrect_reasoning'}).drop(columns = ['model_is_correct'])
         incorrect_df["steer_source"] = "incorrect"
-
+        
         steer_correct_df = correct_df.merge(
             incorrect_df.drop_duplicates(subset = ["problem"]).drop(columns = ["steer_source"]),
             on = ["problem", "solution", "source", "solve_n"]
-        )
+        )       
+        steer_correct_df = self.inverse_sampling(steer_correct_df, "solve_n", self.steer_size)
 
         steer_incorrect_df = incorrect_df.merge(
             correct_df.drop_duplicates(subset = ["problem"]).drop(columns = ["steer_source"]),
             on = ["problem", "solution", "source", "solve_n"]
         )
+        steer_incorrect_df = self.inverse_sampling(steer_incorrect_df, "solve_n", self.steer_size)
 
         self.df = pd.concat([steer_correct_df, steer_incorrect_df], ignore_index = True)
-
-        # self.df = self.correct_df.merge(self.incorrect_df, on = ["problem", "solution", "source", "solve_n"], how = "outer")
     
     @staticmethod
     def filter_judgement_consistency(in_df: pd.DataFrame) -> list[str]:
@@ -151,7 +166,6 @@ class SteerReasoning(OpenLMEngine):
         return problems
         
     def steer_reasoning_chain(self, row):
-        import pdb; pdb.set_trace()
         ratio = row["ratio"]
         steer_source = row["steer_source"]
 
@@ -160,9 +174,11 @@ class SteerReasoning(OpenLMEngine):
         incorrect_r = incorrect_r.split("</think>")[0] if "</think>" in incorrect_r else incorrect_r
 
         if steer_source == "correct":
-            incorrect_r = incorrect_r.replace("<think>", "").split("\n\n")[2:]
+            incorrect_r = incorrect_r.replace("<think>", "").split("\n\n")[1:]
+            incorrect_r = "\n\n".join(incorrect_r)
         else:
-            correct_r = correct_r.replace("<think>", "").split("\n\n")[2:]
+            correct_r = correct_r.replace("<think>", "").split("\n\n")[1:]
+            correct_r = "\n\n".join(correct_r)
 
         correct_chunks, incorrect_chunks = equal_chunk(correct_r, self.granularity), equal_chunk(incorrect_r, self.granularity)
         num_chunks = int(min(len(correct_chunks), len(incorrect_chunks)) * ratio)
@@ -192,7 +208,7 @@ class SteerReasoning(OpenLMEngine):
             ]
             out = self.generate(prompts=batch, new_sampling_params=new_sampling_params)
             self.responses.append(out)
-        self.response = pd.concat(self.responses, ignore_index=True).rename(columns={'response': 'post_distraction_response'})
+        self.response = pd.concat(self.responses, ignore_index=True).rename(columns={'response': 'post_steering_response'})
         self.response.index = self.df.index
         self.df = pd.concat([self.df, self.response], axis=1)
 
@@ -222,8 +238,9 @@ class SteerReasoning(OpenLMEngine):
             add_generation_prompt=True
         ).split("HANDLE")
         
-        self.df["prompt"] = template_prefix + self.df['problem'] + template_suffix + self.df['reasoning_w_distractor']
-        self.df = self.df.drop(columns = ['reasoning_w_distractor'])
+        self.df["prompt"] = template_prefix + self.df['problem'] + template_suffix + self.df['steered_reasoning']
+        self.df["reasoning_token_counts"] = self.df["steered_reasoning"].apply(lambda x: len(self.tokenizer.encode(x)))
+        self.df = self.df.drop(columns = ['steered_reasoning'])
         
         if self.client_name == '':
             self.local_eval()
@@ -234,7 +251,7 @@ class SteerReasoning(OpenLMEngine):
         self.df.to_pickle(output_path)
 
         self.result_df = self.df.copy()
-        self.result_df['pred'] = self.result_df['post_distraction_response'].apply(lambda x: x.split('</think>')[-1].strip() if '</think>' in x else x)
+        self.result_df['pred'] = self.result_df['post_steering_response'].apply(lambda x: x.split('</think>')[-1].strip() if '</think>' in x else x)
         self.result_df['gt'] = self.result_df['solution']
         self.result_df['if_boxed'] = self.result_df['pred'].apply(math_if_boxed)
         
@@ -248,10 +265,8 @@ if __name__=="__main__":
     parser.add_argument("--tokenizer_name", type=str, required=True, help="Name of the tokenizer to use")
     parser.add_argument("--results_dir", type=str, default='/share/goyal/lio/reasoning/eval/', 
                        help="Directory to save evaluation results")
-    parser.add_argument("--sample_size", type=int, default=250,
+    parser.add_argument("--sample_size", type=int, default=500,
                         help="Number of problems to sample for the stress test")
-    parser.add_argument("--num_distract_candidates", type=int, default=20,
-                        help="Number of problems to use as distractors")
     
     parser.add_argument("--tensor_parallel_size", type=int, default=1,
                         help="Number of GPUs for tensor parallelism")
@@ -282,10 +297,9 @@ if __name__=="__main__":
                         help="Name of the client (for OpenAI or other APIs)")
 
     args = parser.parse_args()
-    
     engine = SteerReasoning(
         **vars(args),
     )
-    import pdb; pdb.set_trace()
+
     engine.steer()
     engine.eval()

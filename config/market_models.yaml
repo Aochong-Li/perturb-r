@@ -9,8 +9,8 @@ models:
   # - model_name: "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B"
   #   nick_name: "R1-Distill-Qwen-14B"
 
-  # - model_name: "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B"
-  #   nick_name: "R1-Distill-Qwen-32B"
+  - model_name: "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B"
+    nick_name: "R1-Distill-Qwen-32B"
 
   - model_name: "Qwen/QwQ-32B"
     nick_name: "QwQ-32B"
@@ -28,8 +28,8 @@ models:
   # - model_name: "Qwen/Qwen3-14B"
   #   nick_name: "Qwen3-14B"
 
-  # - model_name: "Qwen/Qwen3-30B-A3B"
-  #   nick_name: "Qwen3-30B-A3B"
+  - model_name: "Qwen/Qwen3-30B-A3B"
+    nick_name: "Qwen3-30B-A3B"
   
   - model_name: "Qwen/Qwen3-32B"
     nick_name: "Qwen3-32B"
@@ -50,8 +50,8 @@ models:
   # - model_name: "open-thoughts/OpenThinker3-7B"
   #   nick_name: "OpenThinker3-7B"
 
-  # - model_name: "GAIR/LIMO"
-  #   nick_name: "LIMO-Qwen-32B"
+  - model_name: "GAIR/LIMO"
+    nick_name: "LIMO-Qwen-32B"
 
   - model_name: "a-m-team/AM-Thinking-v1"
     nick_name: "AM-Distill-Qwen-32B"
