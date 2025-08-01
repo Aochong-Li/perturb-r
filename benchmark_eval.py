@@ -118,11 +118,11 @@ class BenchmarkEval(OpenLMEngine):
             sample_size: Number of samples to use, if None use all
         """
         # HACK
-        self.prior_df = pd.read_pickle(self.output_filepath)
-        self.prior_df, self.df = self.prior_df[self.prior_df['model_is_correct'] == 1.0].reset_index(drop=True), self.prior_df[self.prior_df['model_is_correct'] == 0.0].reset_index(drop=True)
-        self.prior_df, self.df = self.prior_df.drop(columns=['model_is_correct']), self.df.drop(columns=['response', 'pred', 'gt', 'model_is_correct', 'if_boxed'])
+        # self.prior_df = pd.read_pickle(self.output_filepath)
+        # self.prior_df, self.df = self.prior_df[self.prior_df['model_is_correct'] == 1.0].reset_index(drop=True), self.prior_df[self.prior_df['model_is_correct'] == 0.0].reset_index(drop=True)
+        # self.prior_df, self.df = self.prior_df.drop(columns=['model_is_correct']), self.df.drop(columns=['response', 'pred', 'gt', 'model_is_correct', 'if_boxed'])
 
-        return 
+        # return 
 
         try:
             dataset = load_from_disk(dataset_name)[split_name]
@@ -171,8 +171,7 @@ class BenchmarkEval(OpenLMEngine):
         self.df = pd.concat([self.df, self.response], axis=1)
 
         # Save results
-        # HACK
-        # self.df.to_pickle(self.output_filepath)
+        self.df.to_pickle(self.output_filepath)
 
         # Evaluate results
         self.result_df = self.df.copy()
@@ -182,13 +181,15 @@ class BenchmarkEval(OpenLMEngine):
         self.result_df['if_boxed'] = self.result_df['response'].apply(math_if_boxed)
 
         # HACK
-        self.result_df = pd.concat([self.prior_df, self.result_df], ignore_index=True)
-        #
+        # self.result_df = pd.concat([self.prior_df, self.result_df], ignore_index=True)
+        
         self.result_df.to_pickle(self.output_filepath)
         
     def api_eval(self) -> None:
         os.makedirs(self.output_dir + "/api", exist_ok=True)
-        
+        if self.system_prompt:
+            self.df["problem"] = self.df["problem"].apply(lambda x: x + " " + self.system_prompt)
+
         engine = OpenAI_Engine(
             input_df=self.df,
             prompt_template="{problem}",
@@ -253,7 +254,7 @@ if __name__=="__main__":
     parser.add_argument("--client_name", type=str, default='',
                         help="Name of the client to use")
     args = parser.parse_args()
-    
+
     engine = BenchmarkEval(
         **vars(args),
         system_prompt=r"Please reason and put the final answer inside \\boxed{} tag."

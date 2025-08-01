@@ -197,7 +197,7 @@ class InjectDistractor(OpenLMEngine):
 
     def distract(self):
         windows = [round(p, 2) for p in np.arange(0, 1, self.unit)]
-        distractor_windows = [round(p, 2) for p in np.arange(self.unit, 1 + 1e-5, self.unit)]
+        distractor_windows = [self.unit] # [round(p, 2) for p in np.arange(self.unit, 1 + 1e-5, self.unit)]
 
         self.df["original_ratio"] = len(self.df) * [windows]
         self.df = self.df.explode("original_ratio", ignore_index = True)

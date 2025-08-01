@@ -100,7 +100,6 @@ def math_if_boxed(solution_str) -> bool:
     except Exception as e:
         return False
 
-
 def compute_score(solution_str, ground_truth) -> float:
     retval = 0.
     try:

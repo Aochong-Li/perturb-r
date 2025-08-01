@@ -26,7 +26,7 @@ Note:
 
 Your response must include:
 ### Short Analysis
-Provide a short (< 20 words) and direct analysis that compares the student's answer to the standard answer between <analysis> </analysis> tags.
+Provide a short (< 50 words) and direct analysis that compares the student's answer to the standard answer between <analysis> </analysis> tags.
 
 ### Correctness
 At the end, You should report a label CORRECT or WRONG between <judge> </judge> tags (e.g., <judge>CORRECT</judge>).
@@ -44,7 +44,7 @@ class ModelJudge():
     def __init__(self,
                  input_df: pd.DataFrame,
                  problem_col: str,
-                 solution_col: str,
+                 gt_col: str,
                  response_col: str,
                  pred_col: str,
                  output_dir: str,
@@ -52,7 +52,7 @@ class ModelJudge():
                  ):
         self.input_df = input_df
         self.problem_col = problem_col
-        self.solution_col = solution_col
+        self.gt_col = gt_col
         self.response_col = response_col
         self.pred_col = pred_col
         self.output_dir = output_dir
@@ -88,7 +88,7 @@ class ModelJudge():
 
     def run(self, overwrite: bool = True) -> pd.DataFrame:
         self.eval_df = self.input_df.copy()
-        self.eval_df['model_is_correct'] = self.eval_df.apply(lambda x: math_verify_score(x[self.response_col], x[self.solution_col]), axis=1)
+        self.eval_df['model_is_correct'] = self.eval_df.apply(lambda x: math_verify_score(x[self.pred_col], x[self.gt_col], x[self.response_col]), axis=1)
         self.correct_subset = self.eval_df[self.eval_df['model_is_correct'] == 1.0]
         
         self.wrong_subset  = self.eval_df[(self.eval_df['model_is_correct'] == 0.0) & self.eval_df["if_boxed"]].reset_index(drop=True)
@@ -98,7 +98,7 @@ class ModelJudge():
         engine = OpenAI_Engine(
             input_df=self.wrong_subset,
             prompt_template=PROMPT_TEMPLATE,
-            template_map={"problem": self.problem_col, "solution": self.solution_col, "model_pred": "model_pred"},
+            template_map={"problem": self.problem_col, "solution": self.gt_col, "model_pred": "model_pred"},
             nick_name=f"model_judge_{self.nick_name}",
             batch_io_root=str(Path.home()) + "/research/openai_batch_io/reasoning",
             cache_filepath=self.output_dir + f"/{self.nick_name}_model_judge.pickle",
@@ -116,7 +116,7 @@ class ModelJudge():
         return self.response
     
     def merge(self) -> pd.DataFrame:
-        self.wrong_subset = self.wrong_subset.merge(self.response[['model_is_correct']], left_index=True, right_index=True)
+        self.wrong_subset = self.wrong_subset.merge(self.response[['model_is_correct']], left_index=True, right_index=True).drop(columns=['model_pred'])
         self.result_df = pd.concat([self.correct_subset, self.wrong_subset], axis=0, ignore_index=True)
 
         return self.result_df
@@ -130,8 +130,8 @@ if __name__ == "__main__":
       --nick_name Qwen2.5-3B-math8k-sft-distill-step100
 
     python reward_score/model-judge.py \
-      --input_dir ./results/math500amc23/corrupt_numbers_fixed_window \
-      --output_dir ./results/math500amc23/corrupt_numbers_fixed_window/model_judge
+      --input_dir ./results/math8k/benchmark \
+      --output_dir ./results/math8k/benchmark/model_judge
     """
 
     parser = argparse.ArgumentParser(
@@ -145,7 +145,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     problem_col = "problem"
-    solution_col = "gt"
+    gt_col = "gt"
     pred_col = "pred"
     response_col = "response"
     
@@ -154,7 +154,7 @@ if __name__ == "__main__":
         judge_engine = ModelJudge(
             input_df=input_df,
             problem_col=problem_col,
-            solution_col=solution_col,
+            gt_col=gt_col,
             response_col=response_col,
             pred_col=pred_col,
             output_dir=args.output_dir,
@@ -186,7 +186,7 @@ if __name__ == "__main__":
                     judge_engine = ModelJudge(
                         input_df=input_df,
                         problem_col=problem_col,
-                        solution_col=solution_col,
+                        gt_col=gt_col,
                         response_col=response_col,
                         pred_col=pred_col,
                         output_dir=args.output_dir,
