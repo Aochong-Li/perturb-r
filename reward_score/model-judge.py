@@ -1,3 +1,7 @@
+import os
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from core.openai_engine import OpenAI_Engine
 import pandas as pd
 from pathlib import Path
@@ -130,8 +134,8 @@ if __name__ == "__main__":
       --nick_name Qwen2.5-3B-math8k-sft-distill-step100
 
     python reward_score/model-judge.py \
-      --input_dir ./results/math8k/benchmark \
-      --output_dir ./results/math8k/benchmark/model_judge
+      --input_dir ./results/allmath/steer_reasoning \
+      --output_dir ./results/allmath/steer_reasoning/model_judge
     """
 
     parser = argparse.ArgumentParser(
@@ -147,7 +151,7 @@ if __name__ == "__main__":
     problem_col = "problem"
     gt_col = "gt"
     pred_col = "pred"
-    response_col = "response"
+    response_col = "post_steering_response"
     
     if args.input_filepath:
         input_df = pd.read_pickle(args.input_filepath)
