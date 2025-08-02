@@ -93,9 +93,13 @@ class ModelJudge():
     def run(self, overwrite: bool = True) -> pd.DataFrame:
         self.eval_df = self.input_df.copy()
         self.eval_df['model_is_correct'] = self.eval_df.apply(lambda x: math_verify_score(x[self.pred_col], x[self.gt_col], x[self.response_col]), axis=1)
-        self.correct_subset = self.eval_df[self.eval_df['model_is_correct'] == 1.0]
+        self.correct_subset = self.eval_df[
+            (self.eval_df['model_is_correct'] == 1.0) | ((self.eval_df['model_is_correct'] == 0.0) & (~self.eval_df["if_boxed"]))
+            ].reset_index(drop=True)
         
-        self.wrong_subset  = self.eval_df[(self.eval_df['model_is_correct'] == 0.0) & self.eval_df["if_boxed"]].reset_index(drop=True)
+        self.wrong_subset  = self.eval_df[
+            (self.eval_df['model_is_correct'] == 0.0) & (self.eval_df["if_boxed"])
+            ].reset_index(drop=True)
         self.wrong_subset['model_pred'] = self.wrong_subset.apply(self.extract_pred, axis=1)
         self.wrong_subset = self.wrong_subset.drop(columns = ['model_is_correct'])
         
@@ -129,9 +133,9 @@ if __name__ == "__main__":
     """
     Example usage:
     python reward_score/model-judge.py \
-      --input_filepath ./results/math500amc23/benchmark/Qwen2.5-3B-math8k-sft-distill-step100.pickle \
-      --output_dir ./results/math500amc23/benchmark/model_judge \
-      --nick_name Qwen2.5-3B-math8k-sft-distill-step100
+      --input_filepath ./results/allmath/benchmark/DeepSeek-R1.pickle \
+      --output_dir ./results/allmath/benchmark/model_judge \
+      --nick_name DeepSeek-R1
 
     python reward_score/model-judge.py \
       --input_dir ./results/allmath/steer_reasoning \
@@ -151,7 +155,7 @@ if __name__ == "__main__":
     problem_col = "problem"
     gt_col = "gt"
     pred_col = "pred"
-    response_col = "post_steering_response"
+    response_col = "response"
     
     if args.input_filepath:
         input_df = pd.read_pickle(args.input_filepath)
@@ -164,10 +168,9 @@ if __name__ == "__main__":
             output_dir=args.output_dir,
             nick_name=args.nick_name
         )
-        import pdb; pdb.set_trace()
         judge_engine.run(overwrite=args.overwrite)
         result_df = judge_engine.merge()
-        result_df.to_pickle(os.path.join(args.output_dir, f"{args.nick_name}_result.pickle"))
+        result_df.to_pickle(args.input_filepath)
         
     elif args.input_dir:
         finished = []
