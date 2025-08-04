@@ -101,7 +101,7 @@ class BenchmarkEval(OpenLMEngine):
                 max_num_batched_tokens=self.max_num_batched_tokens
             )
             # Download model weights if not already downloaded
-            # _ = AutoModelForCausalLM.from_pretrained(self.model_name, trust_remote_code=True)
+            _ = AutoModelForCausalLM.from_pretrained(self.model_name, trust_remote_code=True)
             # Initialize parent class
             super().__init__(config=config)
             self.tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -256,7 +256,6 @@ if __name__=="__main__":
     args = parser.parse_args()
 
     engine = BenchmarkEval(
-        **vars(args),
-        system_prompt=r"Please reason and put the final answer inside \\boxed{} tag."
+        **vars(args)
     )
     engine.eval()

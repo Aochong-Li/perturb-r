@@ -53,7 +53,7 @@ def main():
     """
     python scripts/scheduler.py \
         --models-yaml config/control_study.yaml \
-        --benchmark-script scripts/math/stress-test/multi-gpu/inject_distractor.sh \
+        --benchmark-script scripts/math/stress-test/multi-gpu/benchmark_eval.sh \
         --poll-interval 5
     ps aux | grep benchmark_eval.sh | grep -v grep
     """
