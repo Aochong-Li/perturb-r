@@ -3,8 +3,8 @@ set -ex
 export CUDA_VISIBLE_DEVICES=0,1
 
 # -------- static bits you rarely touch --------
-MODELS_YAML="config/control_study.yaml"
-DATASET_NAME="math500amc23"
+MODELS_YAML="config/market_models.yaml"
+DATASET_NAME="allmath"
 SPLIT="test"
 SAMPLE_K=8
 DATASET_PATH="./data/${DATASET_NAME}"
@@ -34,7 +34,7 @@ echo "$MODELS_INFO" | while IFS=, read -r model_name nick_name; do
     --tensor_parallel_size 2 \
     --gpu_memory_utilization 0.9 \
     --dtype bfloat16 \
-    --max_tokens 16384 \
+    --max_tokens 32768 \
     --temperature 0.6 \
     --top_p 0.95 \
     --top_k -1 \
