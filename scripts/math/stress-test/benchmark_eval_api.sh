@@ -10,7 +10,8 @@ OUTPUT_DIR="./results/${DATASET_NAME}/benchmark"
 
 # Define models as array of "model_name,nick_name" pairs
 MODELS_NICK=(
-    "deepseek-ai/DeepSeek-R1,DeepSeek-R1"
+    "deepseek-reasoner,DeepSeek-R1-0528"
+    # "Qwen/Qwen3-235B-A22B,Qwen3-235B-A22B"
 )
 # Loop through each model
 for model_info in "${MODELS_NICK[@]}"; do
@@ -29,6 +30,6 @@ for model_info in "${MODELS_NICK[@]}"; do
     --top_p 0.95 \
     --top_k -1 \
     --sample_k $SAMPLE_K \
-    --client_name "deepinfra" \
+    --client_name "deepseek" \
     --overwrite True
 done 

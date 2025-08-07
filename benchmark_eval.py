@@ -155,7 +155,7 @@ class BenchmarkEval(OpenLMEngine):
             tokenized_prompt = self.tokenizer.apply_chat_template(
                 chat_history,
                 tokenize = False,
-                add_generation_prompt = True,
+                add_generation_prompt = True
             )
         
         return tokenized_prompt
@@ -188,13 +188,15 @@ class BenchmarkEval(OpenLMEngine):
     def api_eval(self) -> None:
         os.makedirs(self.output_dir + "/api", exist_ok=True)
         if self.system_prompt:
-            self.df["problem"] = self.df["problem"].apply(lambda x: x + " " + self.system_prompt)
+            self.df["prompt"] = self.df["problem"].apply(lambda x: x + " " + self.system_prompt)
+        else:
+            self.df["prompt"] = self.df["problem"]
 
         engine = OpenAI_Engine(
             input_df=self.df,
-            prompt_template="{problem}",
+            prompt_template="{prompt}",
             developer_message="",
-            template_map={"problem": "problem"},
+            template_map={"prompt": "prompt"},
             nick_name=f"benchmark_eval_{self.nick_name}",
             batch_io_root=str(Path.home()) + "/research/openai_batch_io/reasoning",
             cache_filepath=self.output_dir + f"/api/{self.nick_name}_api_responses.pickle",
@@ -255,7 +257,10 @@ if __name__=="__main__":
                         help="Name of the client to use")
     args = parser.parse_args()
 
+    SYSTEM_PROMPT = "Please reason step by step and put the final answer inside \\boxed{} tag."
+
     engine = BenchmarkEval(
-        **vars(args)
+        **vars(args),
+        system_prompt=SYSTEM_PROMPT
     )
     engine.eval()

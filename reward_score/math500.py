@@ -321,7 +321,7 @@ if __name__ == "__main__":
     """
     conda activate zero
     python reward_score/math500.py --file_path ./results/math500amc23/benchmark
-    python reward_score/math500.py --input_dir ./results/math500amc23/benchmark --overwrite
+    python reward_score/math500.py --input_dir ./results/allmath/benchmark --overwrite
     """
     parser = argparse.ArgumentParser()
     parser.add_argument("--file_path", type=str, required=False)
@@ -331,7 +331,7 @@ if __name__ == "__main__":
     source = args.input_dir if args.input_dir else args.file_path
 
     pred_col = "pred"
-    gt_col = "gt"
+    gt_col = "ground_truth"
     if "benchmark" in source:
         response_col = "response"
     elif "corrupt" in source:

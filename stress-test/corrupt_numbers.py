@@ -286,7 +286,7 @@ class CorruptNumbers(OpenLMEngine):
 
         self.result_df = self.df.copy()
         self.result_df['pred'] = self.result_df['post_corruption_response'].apply(lambda x: x.split('</think>')[-1].strip() if '</think>' in x else x)
-        self.result_df['gt'] = self.result_df['solution']
+        self.result_df['ground_truth'] = self.result_df['solution']
         self.result_df['if_boxed'] = self.result_df['pred'].apply(math_if_boxed)
 
         self.result_df.to_pickle(output_path)

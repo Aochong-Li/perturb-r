@@ -11,14 +11,12 @@ from transformers import AutoModelForCausalLM, AutoConfig, AutoTokenizer
 from core.llm_engine import *
 from core.openai_engine import *
 
-from reward_score.math500 import math_if_boxed
+from reward_score.math500 import math_if_boxed, last_boxed_only_string, remove_boxed
 from utils.chunk_r import equal_chunk
 from utils.corrupt_num import *
 from more_itertools import chunked
 
-BUFFER_TOKENS = 8192
-
-class InjectDistractor(OpenLMEngine):
+class TeacherGuide(OpenLMEngine):
     def __init__(
         self,
         model_name: str,
@@ -26,7 +24,6 @@ class InjectDistractor(OpenLMEngine):
         tokenizer_name: str,
         results_dir: str,
         sample_size: int,
-        num_distract_candidates: int,
         tensor_parallel_size: int = 1,
         gpu_memory_utilization: float = 0.85,
         dtype: str = "bfloat16",
@@ -34,21 +31,19 @@ class InjectDistractor(OpenLMEngine):
         temperature: float = 0.6,
         top_p: float = 1.0,
         top_k: int = -1,
+        num_responses_per_problem: int = 1,
         max_num_batched_tokens: int = 8192,
         mini_batch_size: int = None,
         granularity: int = 30,
-        unit: float = 0.2,
         overwrite: bool = False,
         client_name: str = "",
         **kwargs,
     ):
-        # Initialize attributes first
         self.model_name = model_name
         self.nick_name = nick_name
         self.tokenizer_name = tokenizer_name
         self.results_dir = results_dir
         self.sample_size = sample_size
-        self.num_distract_candidates = num_distract_candidates
         self.tensor_parallel_size = tensor_parallel_size
         self.gpu_memory_utilization = gpu_memory_utilization
         self.dtype = dtype
@@ -56,20 +51,21 @@ class InjectDistractor(OpenLMEngine):
         self.temperature = temperature
         self.top_p = top_p
         self.top_k = top_k
+        self.num_responses_per_problem = num_responses_per_problem
         self.max_num_batched_tokens = max_num_batched_tokens
         self.mini_batch_size = mini_batch_size
+        self.sample_size = sample_size
         self.granularity = granularity
-        self.unit = unit
         self.overwrite = overwrite
         self.client_name = client_name
 
         # Create output directory if it doesn't exist
-        self.output_dir = os.path.join(self.results_dir, "inject_distractor")
+        self.output_dir = os.path.join(self.results_dir, "teacher_guide")
         os.makedirs(self.output_dir, exist_ok=True)
         
         out_pickle = os.path.join(self.output_dir, f"{self.nick_name}.pickle")
         if os.path.exists(out_pickle) and not self.overwrite:
-            print(f"Stress test (Inject Distractor) already exists: {self.nick_name}")
+            print(f"Stress test (Teacher Guide) already exists: {self.nick_name}")
             exit()
         
         cfg = AutoConfig.from_pretrained(self.model_name, trust_remote_code=True)
@@ -88,128 +84,102 @@ class InjectDistractor(OpenLMEngine):
                 temperature=self.temperature,
                 top_p=self.top_p,
                 top_k=self.top_k,
+                n=self.num_responses_per_problem,
                 max_num_batched_tokens=self.max_num_batched_tokens,
                 max_model_len=self.max_position_embeddings
             )
 
             # Initialize parent class
-            super().__init__(config=config)
+            # super().__init__(config=config)
         
         self.load_dataset()
     
-        print(f"Start stress testing: {self.nick_name} on distractor injection")
+        print(f"Start stress testing: {self.nick_name} on teacher guided reasoning")
+    
+    @staticmethod
+    def convert_model_is_correct(label) -> float:
+        if label == True:
+            return 1.0
+        elif label == False:
+            return 0.0
+        elif type(label) == float:
+            return label
+        else:
+            raise ValueError(f"Invalid label: {label}")
 
     def load_dataset(self) -> None:
-        self.dataset_path = os.path.join(self.results_dir, "benchmark", f"{self.nick_name}.pickle")
-        self.df = pd.read_pickle(self.dataset_path)
-        self.k = self.df.groupby('problem').size().max()
-
-        self.df['response_tokens'] = self.df.apply(
-            lambda x: len(self.tokenizer.encode(x['response'])) if x['model_is_correct'] else self.max_position_embeddings,
-            axis = 1
-        )
-        self.original_df = self.df.copy()
+        self.df = pd.read_pickle(os.path.join(self.results_dir, "benchmark", f"{self.nick_name}.pickle"))
+        self.df["model_is_correct"] = self.df["model_is_correct"].apply(self.convert_model_is_correct)
         
-        self.rate = self.df.groupby('problem').agg({'model_is_correct': 'sum', 'response_tokens': 'min'}) \
-            .reset_index().rename(columns = {"model_is_correct": "solve_n", "response_tokens": "min_tokens"})
+        # Keep only problems that the model cannot solve
+        stats = self.df.groupby("problem").agg({"model_is_correct": "sum"}).reset_index().rename(columns={"model_is_correct": "solve_n"})
+        self.df = self.df.merge(stats, on="problem")
+        self.df = self.df[self.df["solve_n"] == 0]
+        self.df = self.df[["problem", "solution", "source"]]
 
-        prob_df = self.rate[(self.rate['solve_n'] > 0) & (self.rate['min_tokens'] < self.max_position_embeddings - BUFFER_TOKENS)]
-        self.df = self.df[self.df.problem.isin(prob_df.problem)]
+        # Load teacher responses
+        self.qwq_df = pd.read_pickle(os.path.join(self.results_dir, "benchmark", "QwQ-32B.pickle"))
+        self.qwq_df["model_is_correct"] = self.qwq_df["model_is_correct"].apply(self.convert_model_is_correct)
+        self.qwq_df["teacher"] = "QwQ-32B"
+        self.qwen3_df = pd.read_pickle(os.path.join(self.results_dir, "benchmark", "Qwen3-235B-A22B.pickle"))
+        self.qwen3_df["model_is_correct"] = self.qwen3_df["model_is_correct"].apply(self.convert_model_is_correct)
+        self.qwen3_df["teacher"] = "Qwen3-235B-A22B"
+        self.r1_df = pd.read_pickle(os.path.join(self.results_dir, "benchmark", "DeepSeek-R1.pickle"))
+        self.r1_df["model_is_correct"] = self.r1_df["model_is_correct"].apply(self.convert_model_is_correct)
+        self.r1_df["teacher"] = "DeepSeek-R1"
+
+        self.teacher_df = pd.concat([self.qwq_df, self.qwen3_df, self.r1_df], ignore_index=True) \
+            [["problem", "response", "teacher", "model_is_correct"]]
+        self.teacher_df = self.teacher_df[self.teacher_df["model_is_correct"] == 1.0]
+
+        # Remove the potential suffix from the problem
+        suffix = "Please reason and put the final answer inside \\\\boxed{} tag."
+        self.df["problem"] = self.df["problem"].apply(lambda x: x.replace(suffix, "").strip())
+        self.teacher_df["problem"] = self.teacher_df["problem"].apply(lambda x: x.replace(suffix, "").strip())
+        self.teacher_df["response"] = self.teacher_df["response"].apply(lambda x: x.replace("<think>\n", "").strip())
+
+        # Keep problems that at least one teacher can solve
+        def count_teacher_solutions(row):
+            problem = row["problem"]
+            num_teacher_solutions = self.teacher_df[self.teacher_df["problem"] == problem]["teacher"].nunique()
+            return num_teacher_solutions
         
-        inv_counts = (
-            prob_df.groupby('solve_n')['problem']
-            .transform('count')
-            .rdiv(1.0)
-        )
-        prob_df['w'] = inv_counts / inv_counts.sum()
-        chosen = prob_df.sample(n=self.sample_size, weights='w', random_state=42)['problem'].tolist()
+        self.df["num_teacher_solutions"] = self.df.apply(count_teacher_solutions, axis = 1)
+        self.df = self.df[self.df["num_teacher_solutions"] > 0]
 
-        self.df = self.df[
-            self.df.problem.isin(chosen) &
-            (self.df.model_is_correct == 1) &
-            (self.df.response_tokens < self.max_position_embeddings - BUFFER_TOKENS)
-        ].reset_index(drop = True)
-        self.df = self.df.drop_duplicates(subset = 'problem').reset_index(drop = True)
-
-        self.df = self.df[['problem', 'solution', 'source', 'response']].rename(columns = {'response': 'original_response'})
-        self.df = self.df.merge(prob_df[['problem', 'solve_n']], on = 'problem').reset_index(drop = True)
-
-        self.select_distractor()
-
-    def select_distractor(self) -> None:
-        self.df["reasoning_chunks"] = self.df["original_response"].apply(lambda x: x.split("</think>")[0] if "</think>" in x else x)
-        self.df["reasoning_chunks"] = self.df["reasoning_chunks"].apply(lambda x: equal_chunk(x, self.granularity))
+        if self.sample_size is not None:
+            self.df = self.df.sort_values(by = "num_teacher_solutions", ascending = False).drop_duplicates(subset = "problem")
+            self.df = self.df[:self.sample_size].reset_index(drop=True)
         
-        self.distractors = self.original_df[~self.original_df['problem'].isin(self.df['problem'].tolist())]
-
-        self.distractors["reasoning_chunks"] = self.distractors['response'].apply(lambda x: x.split("</think>")[0] if "</think>" in x else x)
-        self.distractors["reasoning_chunks"] = self.distractors["reasoning_chunks"].apply(lambda x: equal_chunk(x, self.granularity))
+        self.teacher_df = self.teacher_df[self.teacher_df["problem"].isin(self.df["problem"])] \
+            .drop_duplicates(subset = ["problem", "teacher"]).drop(columns = ["model_is_correct"]) \
+            .rename(columns = {"response": "teacher_response"}).reset_index(drop=True)
         
-        stats = self.df["reasoning_chunks"].str.len().describe([.8, .9])
-        min_chunks, max_chunks = int(stats['80%']), int(stats['90%'])
-        self.distractors = self.distractors[self.distractors['reasoning_chunks'].str.len() >= min_chunks]
-        self.distractors['reasoning_chunks'] = self.distractors['reasoning_chunks'].apply(lambda x: x[:max_chunks])
+        self.df = self.df.merge(self.teacher_df, on = "problem")
+
+        print(f"Loaded {len(self.df)} data with teacher guidance")
         
-        # Add solve_n information for each distractor problem
-        distractor_solve_info = self.rate[['problem', 'solve_n']].rename(columns={'problem': 'distractor_problem', 'solve_n': 'distractor_solve_n'})
+    def guide(self, row):
+        ratio = row["ratio"]
+        teacher_response = row["teacher_response"]
+
+        if "</think>" in teacher_response:
+            teacher_reasoning = teacher_response.split("</think>")[0]
+        else:
+            teacher_reasoning = teacher_response
+
+        teacher_chunks = equal_chunk(teacher_reasoning, self.granularity)
+        num_chunks = int(len(teacher_chunks) * ratio)
+        teacher_chunks = teacher_chunks[:num_chunks]
         
-        # Randomly sample distractors without considering solve rate
-        self.distractors = (
-            self.distractors
-                .drop_duplicates(subset = 'problem')
-                    .sample(n = self.num_distract_candidates, random_state = 42, replace = True)
-                        .reset_index(drop = True)
-        )
+        return "".join(teacher_chunks)
+
+    def guide_reasoning(self):
+        windows = [0.1, 0.2, 0.4, 0.6, 0.8]
+        self.df["ratio"] = len(self.df) * [windows]
+        self.df = self.df.explode("ratio", ignore_index = True)
+        self.df["teacher_reasoning"] = self.df.apply(self.guide, axis = 1)
         
-        columns = ['problem', 'solution', 'source', 'reasoning_chunks']
-        self.distractors = self.distractors[columns] \
-            .rename(columns = {
-                'problem': 'distractor_problem',
-                'solution': 'distractor_solution',
-                'source': 'distractor_source',
-                'reasoning_chunks': 'distractor_reasoning_chunks'
-            })
-        
-        # Merge with solve_n information
-        self.distractors = self.distractors.merge(
-            distractor_solve_info[['distractor_problem', 'distractor_solve_n']],
-             on='distractor_problem', how='left'
-             )
-        
-    def generate_distract_reasoning(self, row):
-        original_ratio = row["original_ratio"]
-        distractor_ratio = row["distractor_ratio"]
-        
-        original_chunks = row["reasoning_chunks"]
-        distractor_chunks = row["distractor_reasoning_chunks"]
-
-        n_orig = int(len(original_chunks) * original_ratio)
-        n_dist = int(len(distractor_chunks) * distractor_ratio)
-
-        original_reasoning = "".join(original_chunks[:n_orig])
-        distractor_reasoning = "".join(distractor_chunks[:n_dist])
-
-        if original_ratio > 0.0:
-            original_reasoning = original_reasoning + "Let me think."
-            distractor_reasoning = distractor_reasoning.replace("<think>", "").rstrip("\n")
-
-        return original_reasoning + distractor_reasoning
-
-    def distract(self):
-        windows = [round(p, 2) for p in np.arange(0, 1, self.unit)]
-        distractor_windows = [self.unit] # [round(p, 2) for p in np.arange(self.unit, 1 + 1e-5, self.unit)]
-
-        self.df["original_ratio"] = len(self.df) * [windows]
-        self.df = self.df.explode("original_ratio", ignore_index = True)
-        self.df["distractor_ratio"] = len(self.df) * [distractor_windows]
-        self.df = self.df.explode("distractor_ratio", ignore_index = True)
-        self.df = self.df[self.df['original_ratio'] + self.df['distractor_ratio'] <= 1.0].reset_index(drop = True)
-
-        self.distractors = self.distractors.sample(n = len(self.df), replace=True, random_state=42).reset_index(drop = True)
-        self.df = pd.concat([self.df, self.distractors], axis = 1)
-
-        self.df["reasoning_w_distractor"] = self.df.apply(self.generate_distract_reasoning, axis = 1)
-
     def local_eval(self) -> None:
         self.responses = []
         self.mini_batch_size = self.df.shape[0] if self.mini_batch_size is None else self.mini_batch_size
@@ -222,7 +192,8 @@ class InjectDistractor(OpenLMEngine):
             ]
             out = self.generate(prompts=batch, new_sampling_params=new_sampling_params)
             self.responses.append(out)
-        self.response = pd.concat(self.responses, ignore_index=True).rename(columns={'response': 'post_distraction_response'})
+        self.response = pd.concat(self.responses, ignore_index=True).rename(columns={'response': 'student_response'})
+        self.df = self.df.loc[np.repeat(self.df.index, self.num_responses_per_problem)].reset_index(drop=True)
         self.response.index = self.df.index
         self.df = pd.concat([self.df, self.response], axis=1)
 
@@ -245,29 +216,51 @@ class InjectDistractor(OpenLMEngine):
         self.response = self.response.explode(['response']).set_index('idx').rename(columns={'response': 'post_distraction_response'})
         self.df = self.df.merge(self.response, left_index=True, right_index=True)
 
-    def eval(self) -> None:
+    def apply_chat_template(self, row) -> str:
         template_prefix, template_suffix = self.tokenizer.apply_chat_template(
             [{"role": "user", "content": "HANDLE"}],
             tokenize=False,
             add_generation_prompt=True
         ).split("HANDLE")
+
+        if '<think>' not in template_suffix:
+            if "openthinker" in self.model_name.lower():
+                template_suffix = template_suffix + "<think> "
+            else:
+                template_suffix = template_suffix + "<think>\n"
+
+        problem = row["problem"]
+        teacher_reasoning = row["teacher_reasoning"]
+        prompt = template_prefix + problem + template_suffix + teacher_reasoning
+
+        return prompt
+
+    def eval(self) -> None:
+        self.df["prompt"] = self.df.apply(self.apply_chat_template, axis = 1)
+        self.df["teacher_reasoning_token_counts"] = self.df["teacher_reasoning"].apply(lambda x: len(self.tokenizer.encode(x)))
         
-        self.df["prompt"] = template_prefix + self.df['problem'] + template_suffix + self.df['reasoning_w_distractor']
-        self.df = self.df.drop(columns = ['reasoning_w_distractor'])
+        output_path = os.path.join(self.output_dir, f"{self.nick_name}.pickle")
+        # # HACK
+        # if os.path.exists(output_path):
+        #     existing_df = pd.read_pickle(output_path)
+        #     existing_df = existing_df[existing_df["prompt"].isin(self.df["prompt"])].reset_index(drop=True)
+        #     self.df = self.df[~self.df["prompt"].isin(existing_df["prompt"])].reset_index(drop=True)
+        
+        # if len(self.df) == 0:
+        #     print(f"No new problems to evaluate for {self.nick_name}")
+        #     return
+        # # END OF HACK
         
         if self.client_name == '':
             self.local_eval()
         else:
             self.api_eval()
-        
-        output_path = os.path.join(self.output_dir, f"{self.nick_name}.pickle")
-        self.df.to_pickle(output_path)
 
         self.result_df = self.df.copy()
-        self.result_df['pred'] = self.result_df['post_distraction_response'].apply(lambda x: x.split('</think>')[-1].strip() if '</think>' in x else x)
+        self.result_df['pred'] = self.result_df['student_response'].apply(lambda x: x.split('</think>')[-1].strip() if '</think>' in x else x)
         self.result_df['ground_truth'] = self.result_df['solution']
         self.result_df['if_boxed'] = self.result_df['pred'].apply(math_if_boxed)
-        
+
         self.result_df.to_pickle(output_path)
 
 if __name__=="__main__":
@@ -278,10 +271,8 @@ if __name__=="__main__":
     parser.add_argument("--tokenizer_name", type=str, required=True, help="Name of the tokenizer to use")
     parser.add_argument("--results_dir", type=str, default='/share/goyal/lio/reasoning/eval/', 
                        help="Directory to save evaluation results")
-    parser.add_argument("--sample_size", type=int, default=250,
+    parser.add_argument("--sample_size", type=int, default=None,
                         help="Number of problems to sample for the stress test")
-    parser.add_argument("--num_distract_candidates", type=int, default=20,
-                        help="Number of problems to use as distractors")
     
     parser.add_argument("--tensor_parallel_size", type=int, default=1,
                         help="Number of GPUs for tensor parallelism")
@@ -297,23 +288,24 @@ if __name__=="__main__":
                         help="Nucleus sampling parameter")
     parser.add_argument("--top_k", type=int, default=-1,
                         help="Top-k sampling parameter")
-    parser.add_argument("--max_num_batched_tokens", type=int, default=8192,
+    parser.add_argument("--num_responses_per_problem", type=int, default=8,
+                        help="Number of teacher responses to use")
+    parser.add_argument("--max_num_batched_tokens", type=int, default=32768,
                         help="Maximum number of tokens in a batch")
     
     parser.add_argument("--mini_batch_size", type=int, default=None,
                         help="Mini batch size for generation")
     parser.add_argument("--granularity", type=int, default=30,
                         help="Granularity of the thinking chunks")
-    parser.add_argument("--unit", type=float, default=0.2,
-                        help="Unit of the thinking chunks")
     parser.add_argument("--overwrite", action="store_true",
                         help="Overwrite existing results")
     parser.add_argument("--client_name", type=str, default="",
                         help="Name of the client (for OpenAI or other APIs)")
 
     args = parser.parse_args()
-    engine = InjectDistractor(
+    
+    engine = TeacherGuide(
         **vars(args),
     )
-    engine.distract()
+    engine.guide_reasoning()
     engine.eval()

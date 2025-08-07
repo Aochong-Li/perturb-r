@@ -118,7 +118,7 @@ class OpenAI_Engine():
 
             if self.mode == 'chat_completions':
                 if overwrite and Path(self.cache_filepath).exists():
-                    Path(self.cache_filepath).unlink()
+                    raise ValueError(f'The cache file {self.cache_filepath} already exists. Please manually delete this file for security reasons.')
                 openaiapi.generate_parallel_completions(input_filepath=self.input_filepath,
                                                     cache_filepath=self.cache_filepath,
                                                     num_workers=num_workers,
@@ -166,5 +166,7 @@ class OpenAI_Engine():
             output_df = openaiapi.minibatch_retrieve_response(output_dict=output_dict)
             output_df.to_pickle(self.cache_filepath)
             logger.info(f'Results are retrieved and stored at {self.cache_filepath}')
+        else:
+            raise ValueError(f'The cache file {self.cache_filepath} does not exist. Please run the model first.')
 
         return output_df

@@ -163,6 +163,10 @@ def generate_completions(
                     stop=stop,
                 )
             resp = client.completions.create(**kwargs)
+            if model == "deepseek-reasoner":
+                return [
+                    f"{c.message.reasoning_content}\n</think>\n{c.message.content}" for c in resp.choices
+                ], errors, attempt
             return [c.text for c in resp.choices], errors, attempt
         except RETRYABLE as exc:
             errors.append(repr(exc))
