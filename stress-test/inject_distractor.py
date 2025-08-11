@@ -74,7 +74,6 @@ class InjectDistractor(OpenLMEngine):
         
         cfg = AutoConfig.from_pretrained(self.model_name, trust_remote_code=True)
         self.max_position_embeddings = cfg.max_position_embeddings
-        self.tokenizer = AutoTokenizer.from_pretrained(self.tokenizer_name)
 
         if self.client_name == '':    
             # Initialize model config
@@ -91,10 +90,9 @@ class InjectDistractor(OpenLMEngine):
                 max_num_batched_tokens=self.max_num_batched_tokens,
                 max_model_len=self.max_position_embeddings
             )
-
             # Initialize parent class
             super().__init__(config=config)
-        
+            
         self.load_dataset()
     
         print(f"Start stress testing: {self.nick_name} on distractor injection")
@@ -103,7 +101,6 @@ class InjectDistractor(OpenLMEngine):
         self.dataset_path = os.path.join(self.results_dir, "benchmark", f"{self.nick_name}.pickle")
         self.df = pd.read_pickle(self.dataset_path)
         self.k = self.df.groupby('problem').size().max()
-
         self.df['response_tokens'] = self.df.apply(
             lambda x: len(self.tokenizer.encode(x['response'])) if x['model_is_correct'] else self.max_position_embeddings,
             axis = 1
@@ -112,7 +109,6 @@ class InjectDistractor(OpenLMEngine):
         
         self.rate = self.df.groupby('problem').agg({'model_is_correct': 'sum', 'response_tokens': 'min'}) \
             .reset_index().rename(columns = {"model_is_correct": "solve_n", "response_tokens": "min_tokens"})
-
         prob_df = self.rate[(self.rate['solve_n'] > 0) & (self.rate['min_tokens'] < self.max_position_embeddings - BUFFER_TOKENS)]
         self.df = self.df[self.df.problem.isin(prob_df.problem)]
         
@@ -123,7 +119,6 @@ class InjectDistractor(OpenLMEngine):
         )
         prob_df['w'] = inv_counts / inv_counts.sum()
         chosen = prob_df.sample(n=self.sample_size, weights='w', random_state=42)['problem'].tolist()
-
         self.df = self.df[
             self.df.problem.isin(chosen) &
             (self.df.model_is_correct == 1) &
@@ -138,12 +133,12 @@ class InjectDistractor(OpenLMEngine):
 
     def select_distractor(self) -> None:
         self.df["reasoning_chunks"] = self.df["original_response"].apply(lambda x: x.split("</think>")[0] if "</think>" in x else x)
-        self.df["reasoning_chunks"] = self.df["reasoning_chunks"].apply(lambda x: equal_chunk(x, self.granularity))
+        self.df["reasoning_chunks"] = self.df["reasoning_chunks"].apply(lambda x: equal_chunk(x, self.granularity, keep_first_paragraph=True))
         
         self.distractors = self.original_df[~self.original_df['problem'].isin(self.df['problem'].tolist())]
-
         self.distractors["reasoning_chunks"] = self.distractors['response'].apply(lambda x: x.split("</think>")[0] if "</think>" in x else x)
-        self.distractors["reasoning_chunks"] = self.distractors["reasoning_chunks"].apply(lambda x: equal_chunk(x, self.granularity))
+        self.distractors["reasoning_chunks"] = self.distractors["reasoning_chunks"].apply(lambda x: equal_chunk(x, self.granularity, keep_first_paragraph=True))
+        self.distractors["reasoning_chunks"] = self.distractors["reasoning_chunks"].apply(lambda x: x[1:]) # drop the first paragraph
         
         stats = self.df["reasoning_chunks"].str.len().describe([.8, .9])
         min_chunks, max_chunks = int(stats['80%']), int(stats['90%'])
@@ -183,32 +178,31 @@ class InjectDistractor(OpenLMEngine):
         original_chunks = row["reasoning_chunks"]
         distractor_chunks = row["distractor_reasoning_chunks"]
 
-        n_orig = int(len(original_chunks) * original_ratio)
+        n_orig = max(int(len(original_chunks) * original_ratio), 1) # always keep at least first paragraph
         n_dist = int(len(distractor_chunks) * distractor_ratio)
 
-        original_reasoning = "".join(original_chunks[:n_orig])
-        distractor_reasoning = "".join(distractor_chunks[:n_dist])
+        original_reasoning = "".join(original_chunks[:n_orig]).rstrip("\n")
+        distractor_reasoning = "".join(distractor_chunks[:n_dist]).lstrip("\n")
 
-        if original_ratio > 0.0:
-            original_reasoning = original_reasoning + "Let me think."
-            distractor_reasoning = distractor_reasoning.replace("<think>", "").rstrip("\n")
-
-        return original_reasoning + distractor_reasoning
+        return original_reasoning + "\n\n" + distractor_reasoning
 
     def distract(self):
-        windows = [round(p, 2) for p in np.arange(0, 1, self.unit)]
-        distractor_windows = [self.unit] # [round(p, 2) for p in np.arange(self.unit, 1 + 1e-5, self.unit)]
+        # Build ratio grids via cross join (avoids list-in-cells + explode)
+        windows = np.round(np.arange(0, 1, self.unit), 2).tolist()
+        distractor_windows = [self.unit]
 
-        self.df["original_ratio"] = len(self.df) * [windows]
-        self.df = self.df.explode("original_ratio", ignore_index = True)
-        self.df["distractor_ratio"] = len(self.df) * [distractor_windows]
-        self.df = self.df.explode("distractor_ratio", ignore_index = True)
-        self.df = self.df[self.df['original_ratio'] + self.df['distractor_ratio'] <= 1.0].reset_index(drop = True)
+        ratio_df = pd.DataFrame({"original_ratio": windows})
+        dist_ratio_df = pd.DataFrame({"distractor_ratio": distractor_windows})
 
-        self.distractors = self.distractors.sample(n = len(self.df), replace=True, random_state=42).reset_index(drop = True)
-        self.df = pd.concat([self.df, self.distractors], axis = 1)
+        self.df = (self.df
+                   .merge(ratio_df, how='cross')
+                   .merge(dist_ratio_df, how='cross'))
+        self.df = self.df[(self.df['original_ratio'] + self.df['distractor_ratio'] <= 1.0)].reset_index(drop=True)
 
-        self.df["reasoning_w_distractor"] = self.df.apply(self.generate_distract_reasoning, axis = 1)
+        self.distractors = self.distractors.sample(n=len(self.df), replace=True, random_state=42).reset_index(drop=True)
+        self.df = pd.concat([self.df, self.distractors], axis=1)
+
+        self.df["reasoning_w_distractor"] = self.df.apply(self.generate_distract_reasoning, axis=1)
 
     def local_eval(self) -> None:
         self.responses = []
@@ -278,9 +272,9 @@ if __name__=="__main__":
     parser.add_argument("--tokenizer_name", type=str, required=True, help="Name of the tokenizer to use")
     parser.add_argument("--results_dir", type=str, default='/share/goyal/lio/reasoning/eval/', 
                        help="Directory to save evaluation results")
-    parser.add_argument("--sample_size", type=int, default=250,
+    parser.add_argument("--sample_size", type=int, default=100,
                         help="Number of problems to sample for the stress test")
-    parser.add_argument("--num_distract_candidates", type=int, default=20,
+    parser.add_argument("--num_distract_candidates", type=int, default=50,
                         help="Number of problems to use as distractors")
     
     parser.add_argument("--tensor_parallel_size", type=int, default=1,
@@ -310,7 +304,6 @@ if __name__=="__main__":
                         help="Overwrite existing results")
     parser.add_argument("--client_name", type=str, default="",
                         help="Name of the client (for OpenAI or other APIs)")
-
     args = parser.parse_args()
     engine = InjectDistractor(
         **vars(args),

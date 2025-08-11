@@ -33,6 +33,5 @@ echo "$MODELS_INFO" | while IFS=, read -r model_name nick_name; do
         --top_k -1 \
         --granularity 30 \
         --max_num_batched_tokens 32768 \
-        --num_responses_per_problem 8 \
-        --overwrite
+        --num_responses_per_problem 8
 done

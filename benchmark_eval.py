@@ -101,7 +101,7 @@ class BenchmarkEval(OpenLMEngine):
                 max_num_batched_tokens=self.max_num_batched_tokens
             )
             # Download model weights if not already downloaded
-            _ = AutoModelForCausalLM.from_pretrained(self.model_name, trust_remote_code=True)
+            # _ = AutoModelForCausalLM.from_pretrained(self.model_name, trust_remote_code=True)
             # Initialize parent class
             super().__init__(config=config)
             self.tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -109,21 +109,6 @@ class BenchmarkEval(OpenLMEngine):
         print(f"Start evaluating {self.nick_name} on dataset: {dataset_name_or_path} | subset: {subset_name} | split: {split_name} | avg@{self.sample_k}")
 
     def load_dataset(self, dataset_name: str, subset_name: str, split_name: str, sample_size: int) -> None:
-        """Load dataset from HuggingFace or local disk.
-        
-        Args:
-            dataset_name: Name of the dataset or path to local dataset
-            subset_name: Subset name if applicable
-            split_name: Split name (e.g., 'train', 'test')
-            sample_size: Number of samples to use, if None use all
-        """
-        # HACK
-        # self.prior_df = pd.read_pickle(self.output_filepath)
-        # self.prior_df, self.df = self.prior_df[self.prior_df['model_is_correct'] == 1.0].reset_index(drop=True), self.prior_df[self.prior_df['model_is_correct'] == 0.0].reset_index(drop=True)
-        # self.prior_df, self.df = self.prior_df.drop(columns=['model_is_correct']), self.df.drop(columns=['response', 'pred', 'gt', 'model_is_correct', 'if_boxed'])
-
-        # return 
-
         try:
             dataset = load_from_disk(dataset_name)[split_name]
         except Exception as e:
@@ -179,10 +164,6 @@ class BenchmarkEval(OpenLMEngine):
         self.result_df['gt'] = self.result_df['solution']
         
         self.result_df['if_boxed'] = self.result_df['response'].apply(math_if_boxed)
-
-        # HACK
-        # self.result_df = pd.concat([self.prior_df, self.result_df], ignore_index=True)
-        
         self.result_df.to_pickle(self.output_filepath)
         
     def api_eval(self) -> None:

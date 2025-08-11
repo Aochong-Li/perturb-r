@@ -10,6 +10,7 @@ from vllm import LLM, SamplingParams
 
 # Allow longer max_model_len in vLLM
 os.environ["VLLM_ALLOW_LONG_MAX_MODEL_LEN"] = "1"
+os.environ["RAY_CGRAPH_get_timeout"] = "600"
 
 @dataclass
 class ModelConfig:
@@ -29,7 +30,7 @@ class ModelConfig:
     max_num_batched_tokens: Optional[int] = None
     tensor_parallel_size: int = 1
     pipeline_parallel_size: int = 1
-    distributed_executor_backend: str = 'mp'
+    distributed_executor_backend: str = 'ray'
     trust_remote_code: bool = True
     enable_chunked_prefill: bool = True
     enable_prefix_caching: bool = True
@@ -111,6 +112,7 @@ class OpenLMEngine:
             )
         except Exception as e:
             logging.error(f"Generation error: {e}")
+            raise e
         duration = time.monotonic() - start
         logging.info(f"Generated {len(prompts)} prompt(s) in {duration:.2f}s")
 
@@ -183,11 +185,11 @@ class OpenLMEngine:
 
 if __name__ == '__main__':
     config = ModelConfig(
-        model_name="../rlvr/sft/LLaMA-Factory/outputs/deepmath/Qwen2.5-1.5B-DeepMath-level1-5-117k-sft-5epochs-5e-5lr/checkpoint-4570",
-        tensor_parallel_size=2,
+        model_name="open-thoughts/OpenThinker3-7B",
+        tensor_parallel_size=1,
         gpu_memory_utilization=0.85,
         dtype="bfloat16",
-        max_tokens=40960,
+        max_tokens=8192,
         temperature=0.6,
         top_p=1.0,
         top_k=-1

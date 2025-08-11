@@ -27,7 +27,7 @@ Note:
 - If the standard answer contains multiple solutions connected by "or"/"and", all of them must be listed in the student's answer;
 - If student's response does not mention any answer, it is considered WRONG;
 - You must be deterministic and rigorous - always declare the answer as either CORRECT or WRONG;
-- Small rounding differences are permitted.
+- Small rounding differences are permitted if all the derivation steps are correct.
 
 Your response must include:
 ### Short Analysis
@@ -142,8 +142,7 @@ class ModelJudge():
         self.check_subset = self.check_subset.merge(
             self.response[['model_judge','model_is_correct']], 
             left_index=True,
-            right_index=True).drop(columns=['model_pred']
-            )
+            right_index=True).drop(columns=['model_pred'])
 
         self.result_df = pd.concat([self.keep_subset, self.check_subset], axis=0, ignore_index=True)
         if strict_has_answer:
@@ -163,8 +162,8 @@ if __name__ == "__main__":
       --nick_name LIMO-Qwen-32B
 
     python reward_score/model-judge.py \
-      --input_dir ./results/allmath/benchmark \
-      --output_dir ./results/allmath/benchmark/model_judge
+      --input_dir ./results/allmath/inject_distractor \
+      --output_dir ./results/allmath/inject_distractor/model_judge
     """
 
     parser = argparse.ArgumentParser(
@@ -180,7 +179,7 @@ if __name__ == "__main__":
     problem_col = "problem"
     gt_col = "ground_truth"
     pred_col = "pred"
-    response_col = "response"
+    response_col = "post_distraction_response"
     strict_boxed = False
     strict_has_answer = True
     
@@ -219,7 +218,6 @@ if __name__ == "__main__":
                     
                     if "LIMO" in nick_name:
                         strict_has_answer = False
-
                     judge_engine = ModelJudge(
                         input_df=input_df,
                         problem_col=problem_col,

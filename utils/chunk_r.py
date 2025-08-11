@@ -1,9 +1,19 @@
 import re
 from typing import List
 
-def equal_chunk(text: str, granularity: int = 30) -> List[str]:
+def equal_chunk(text: str, granularity: int = 30, keep_first_paragraph: bool = False) -> List[str]:
     G, MAX = granularity, 2 * granularity
-    paras = re.split(r'\n{2,}', text)
+
+    if keep_first_paragraph:
+        # Use consistent splitting and filter out whitespace-only paragraphs
+        paras = [para for para in re.split(r'\n{2,}', text) if para.strip()]
+        if not paras:
+            return []
+        first_para, txt = paras[0], '\n\n'.join(paras[1:])
+    else:
+        txt = text
+
+    paras = re.split(r'\n{2,}', txt)
     raw_chunks: List[str] = []
 
     # 1) Paragraph-level chop (or line-level if paragraph too big)
@@ -61,7 +71,7 @@ def equal_chunk(text: str, granularity: int = 30) -> List[str]:
                 continue
         chunks.append(c)
 
-    return chunks
+    return [first_para] + chunks if keep_first_paragraph else chunks
 
 def deprecated_chunk(reasoning: str, granularity: int = 30):
     """

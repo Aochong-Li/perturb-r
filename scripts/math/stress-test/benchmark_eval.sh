@@ -4,10 +4,10 @@ export CUDA_VISIBLE_DEVICES=0,1
 
 # -------- static bits you rarely touch --------
 MODELS_YAML="config/market_models.yaml"
-DATASET_NAME="allmath"
+DATASET_NAME="math8k_medium"
 SPLIT="test"
-SAMPLE_K=8
-DATASET_PATH="./data/${DATASET_NAME}"
+SAMPLE_K=1
+DATASET_PATH="aochongoliverli/math8k_medium"
 OUTPUT_DIR="./results/${DATASET_NAME}/benchmark"
 # ----------------------------------------------
 

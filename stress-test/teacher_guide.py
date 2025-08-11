@@ -90,7 +90,7 @@ class TeacherGuide(OpenLMEngine):
             )
 
             # Initialize parent class
-            # super().__init__(config=config)
+            super().__init__(config=config)
         
         self.load_dataset()
     
@@ -240,17 +240,6 @@ class TeacherGuide(OpenLMEngine):
         self.df["teacher_reasoning_token_counts"] = self.df["teacher_reasoning"].apply(lambda x: len(self.tokenizer.encode(x)))
         
         output_path = os.path.join(self.output_dir, f"{self.nick_name}.pickle")
-        # # HACK
-        # if os.path.exists(output_path):
-        #     existing_df = pd.read_pickle(output_path)
-        #     existing_df = existing_df[existing_df["prompt"].isin(self.df["prompt"])].reset_index(drop=True)
-        #     self.df = self.df[~self.df["prompt"].isin(existing_df["prompt"])].reset_index(drop=True)
-        
-        # if len(self.df) == 0:
-        #     print(f"No new problems to evaluate for {self.nick_name}")
-        #     return
-        # # END OF HACK
-        
         if self.client_name == '':
             self.local_eval()
         else:
