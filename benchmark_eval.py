@@ -39,7 +39,6 @@ class BenchmarkEval(OpenLMEngine):
                  top_p: float = 1.0,
                  top_k: int = 0,
                  sample_k: int = 1,
-                 enable_thinking: bool = True,
                  max_num_batched_tokens: int = 8192,
                  overwrite: bool = False,
                  client_name: str = '',
@@ -58,25 +57,19 @@ class BenchmarkEval(OpenLMEngine):
         self.top_p = top_p
         self.top_k = top_k
         self.sample_k = sample_k
-        self.enable_thinking = enable_thinking
         self.overwrite = overwrite
         self.max_num_batched_tokens = max_num_batched_tokens
         self.client_name = client_name
         self.filename_suffix = filename_suffix
         self.system_prompt = system_prompt
 
-        # Create output directory if it doesn't exist
         os.makedirs(self.output_dir, exist_ok=True)
-        self.output_filepath = os.path.join(self.output_dir, f"{self.nick_name}{'_nothinking' if not self.enable_thinking else ''}{self.filename_suffix if self.filename_suffix else ''}.pickle")
+        self.output_filepath = os.path.join(self.output_dir, f"{self.nick_name}{self.filename_suffix if self.filename_suffix else ''}.pickle")
         if not self.overwrite:
             if os.path.exists(self.output_filepath):
-                print(f"Results already exist for {self.nick_name} with enable_thinking={self.enable_thinking}")
+                print(f"Results already exist for {self.nick_name}")
                 exit()
-        elif "qwen3" not in self.nick_name.lower() and not self.enable_thinking:
-            print(f"No-Thinking mode is not supported for {self.nick_name}")
-            exit()
-
-        # Load dataset
+        
         self.load_dataset(
             dataset_name_or_path,
             subset_name,
@@ -129,19 +122,12 @@ class BenchmarkEval(OpenLMEngine):
         if self.system_prompt:
             chat_history.insert(0, {'role': 'system', 'content': self.system_prompt})
 
-        if not self.enable_thinking:
-            tokenized_prompt = self.tokenizer.apply_chat_template(
-                chat_history,
-                tokenize = False,
-                add_generation_prompt = True,
-                enable_thinking=self.enable_thinking
-            )
-        else:
-            tokenized_prompt = self.tokenizer.apply_chat_template(
-                chat_history,
-                tokenize = False,
-                add_generation_prompt = True
-            )
+
+        tokenized_prompt = self.tokenizer.apply_chat_template(
+            chat_history,
+            tokenize = False,
+            add_generation_prompt = True
+        )
         
         return tokenized_prompt
     
@@ -168,15 +154,12 @@ class BenchmarkEval(OpenLMEngine):
         
     def api_eval(self) -> None:
         os.makedirs(self.output_dir + "/api", exist_ok=True)
-        if self.system_prompt:
-            self.df["prompt"] = self.df["problem"].apply(lambda x: x + " " + self.system_prompt)
-        else:
-            self.df["prompt"] = self.df["problem"]
+        self.df["prompt"] = self.df["problem"]
 
         engine = OpenAI_Engine(
             input_df=self.df,
             prompt_template="{prompt}",
-            developer_message="",
+            system_message=self.system_prompt if self.system_prompt else "",
             template_map={"prompt": "prompt"},
             nick_name=f"benchmark_eval_{self.nick_name}",
             batch_io_root=str(Path.home()) + "/research/openai_batch_io/reasoning",
@@ -185,6 +168,7 @@ class BenchmarkEval(OpenLMEngine):
             client_name=self.client_name,
             temperature=self.temperature,
             max_tokens=self.max_tokens,
+            top_p=self.top_p,
             n=self.sample_k,
             mode="chat_completions"
         )
@@ -230,16 +214,14 @@ if __name__=="__main__":
 
     parser.add_argument("--overwrite", type=str2bool, default=False,
                         help="Overwrite existing results")
-    parser.add_argument("--enable_thinking", type=str2bool, default=True,
-                        help="Enable thinking")
     parser.add_argument("--max_num_batched_tokens", type=int, default=8192,
                         help="Maximum number of tokens to batch")
     parser.add_argument("--client_name", type=str, default='',
                         help="Name of the client to use")
     args = parser.parse_args()
 
-    SYSTEM_PROMPT = "Please reason step by step and put the final answer inside \\boxed{} tag."
-
+    SYSTEM_PROMPT = None # "You are the smartest mathematician in the world. Please reason step by step and put the final answer inside \\boxed{} tag."
+    
     engine = BenchmarkEval(
         **vars(args),
         system_prompt=SYSTEM_PROMPT

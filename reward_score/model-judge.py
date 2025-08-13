@@ -162,8 +162,8 @@ if __name__ == "__main__":
       --nick_name LIMO-Qwen-32B
 
     python reward_score/model-judge.py \
-      --input_dir ./results/allmath/inject_distractor \
-      --output_dir ./results/allmath/inject_distractor/model_judge
+      --input_dir ./results/allmath/benchmark \
+      --output_dir ./results/allmath/benchmark/model_judge
     """
 
     parser = argparse.ArgumentParser(
@@ -179,7 +179,7 @@ if __name__ == "__main__":
     problem_col = "problem"
     gt_col = "ground_truth"
     pred_col = "pred"
-    response_col = "post_distraction_response"
+    response_col = "response"
     strict_boxed = False
     strict_has_answer = True
     

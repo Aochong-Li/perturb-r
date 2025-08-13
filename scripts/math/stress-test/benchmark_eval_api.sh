@@ -3,14 +3,15 @@ set -ex
 
 # -------- static bits you rarely touch --------
 DATASET_NAME="allmath"
-SAMPLE_K=1
+SAMPLE_K=4
 DATASET_PATH="./data/${DATASET_NAME}"
 OUTPUT_DIR="./results/${DATASET_NAME}/benchmark"
 # ----------------------------------------------
 
 # Define models as array of "model_name,nick_name" pairs
 MODELS_NICK=(
-    "deepseek-reasoner,DeepSeek-R1-0528"
+    "deepseek-reasoner,DeepSeek-R1-0528-pro"
+    # "Qwen/Qwen3-235B-A22B-Thinking-2507,Qwen3-235B-A22B-2507-pro"
 )
 # Loop through each model
 for model_info in "${MODELS_NICK[@]}"; do
@@ -27,7 +28,7 @@ for model_info in "${MODELS_NICK[@]}"; do
     --max_tokens 32768 \
     --temperature 0.6 \
     --top_p 0.95 \
-    --top_k -1 \
+    --top_k 20 \
     --sample_k $SAMPLE_K \
     --client_name "deepseek" \
     --overwrite True
