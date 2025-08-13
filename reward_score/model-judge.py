@@ -117,6 +117,7 @@ class ModelJudge():
         else:
             self.check_subset = self.check_subset[(self.check_subset['model_is_correct'] == 0.0)]
         
+        self.keep_subset = self.eval_df[~self.eval_df.index.isin(self.check_subset.index)]
         self.check_subset['model_pred'] = self.check_subset.apply(self.extract_pred, axis=1)
         self.check_subset = self.check_subset.drop(columns = ['model_is_correct']).reset_index(drop=True)
 

@@ -30,8 +30,8 @@ models:
   #   nick_name: "R1-Distill-Llama-8B"
 
   # Community models
-  # - model_name: "zwhe99/DeepMath-Zero-7B"
-  #   nick_name: "DeepMath-Zero-7B"
+  - model_name: "zwhe99/DeepMath-Zero-7B"
+    nick_name: "DeepMath-Zero-7B"
     
   # - model_name: "open-thoughts/OpenThinker3-1.5B"
   #   nick_name: "OpenThinker3-1.5B"
