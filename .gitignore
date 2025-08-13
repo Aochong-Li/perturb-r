@@ -19,5 +19,6 @@ config/market_models.yaml
 config/control_study.yaml
 data/
 
-notebooks/math
-notebooks/deepmath
+notebook
+notebook/math
+notebook/deepmath
