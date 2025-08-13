@@ -34,6 +34,6 @@ echo "$MODELS_INFO" | while IFS=, read -r model_name nick_name; do
         --granularity 30 \
         --max_num_batched_tokens 8192 \
         --num_distract_candidates 50 \
-        --mini_batch_size 50 \
+        --mini_batch_size 500 \
         --unit 0.2
 done

@@ -305,6 +305,7 @@ if __name__=="__main__":
     parser.add_argument("--client_name", type=str, default="",
                         help="Name of the client (for OpenAI or other APIs)")
     args = parser.parse_args()
+    
     engine = InjectDistractor(
         **vars(args),
     )
