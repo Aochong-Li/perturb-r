@@ -71,7 +71,8 @@ def create_client(client_name: str) -> OpenAI:
 def generate_chat_completions(
     *,
     input_prompt: str,
-    developer_message: str = "You are a helpful assistant",
+    developer_message: str = "",
+    system_message: str = "",
     model: str = "gpt-4o",
     client_name: str = "openai",
     temperature: float = 0.6,
@@ -85,9 +86,12 @@ def generate_chat_completions(
 ) -> Tuple[Optional[List[str]], List[str], int]:
     client = create_client(client_name)
     messages = [
-        {"role": "system", "content": developer_message},
         {"role": "user", "content": input_prompt},
     ]
+    if system_message != "":
+        messages.insert(0, {"role": "system", "content": system_message})
+    elif developer_message != "":
+        messages.insert(0, {"role": "developer", "content": developer_message})
 
     errors: List[str] = []
     for attempt in range(1, max_attempts + 1):
@@ -199,9 +203,20 @@ ResultRow = Tuple[int, Optional[List[str]], List[str], int]
 def _process(idx: int, req: Dict[str, Any], func_name: str) -> ResultRow:
     body = req["body"]
     if func_name == "chat_completions":
+        
+        messages = {}
+        for msg in body["messages"]:
+            if msg["role"] == "user":
+                messages["user"] = msg["content"]
+            elif msg["role"] == "system":
+                messages["system"] = msg["content"]
+            elif msg["role"] == "developer":
+                messages["developer"] = msg["content"]
+        
         response, errs, tries = generate_chat_completions(
-            input_prompt=body["messages"][1]["content"],
-            developer_message=body["messages"][0]["content"],
+            input_prompt=messages["user"],
+            system_message=messages.get("system", ""),
+            developer_message=messages.get("developer", ""),
             model=body["model"],
             client_name=req["client_name"],
             temperature=body.get("temperature", 0.0),
@@ -444,7 +459,7 @@ def batch_completions_template(
 def batch_chat_completions_template(
     input_prompt: str,
     system_message: str = '',
-    developer_message: str = 'You are a helpful assistant',
+    developer_message: str = '',
     model: str = 'gpt-4o',
     client_name: str = '',
     custom_id: str = '',
@@ -459,9 +474,9 @@ def batch_chat_completions_template(
     messages = [
         {"role": "user", "content": input_prompt}
     ]
-    if system_message:
+    if system_message != '':
         messages.insert(0, {"role": "system", "content": system_message})
-    elif developer_message:
+    elif developer_message != '':
         messages.insert(0, {"role": "developer", "content": developer_message})
     
     query_template = {

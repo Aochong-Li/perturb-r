@@ -9,7 +9,7 @@ import argparse
 import re
 import os
 import time
-
+from concurrent.futures import ProcessPoolExecutor
 from reward_score.math500 import math_verify_score, math_if_boxed
 
 PROMPT_TEMPLATE = '''### System Prompt
@@ -89,7 +89,7 @@ class ModelJudge():
         else:
             return 0.0
 
-    def run(self, overwrite: bool = True, strict_boxed: bool = True) -> pd.DataFrame:
+    def run(self, overwrite: bool = True, strict_has_answer: bool = True, strict_boxed: bool = False) -> pd.DataFrame:
         self.eval_df = self.input_df.copy()
         
         if "gt" in self.eval_df.columns:
@@ -98,23 +98,28 @@ class ModelJudge():
             self.eval_df = self.eval_df.drop(columns=["model_is_correct"])
         if "model_judge" in self.eval_df.columns:
             self.eval_df = self.eval_df.drop(columns=["model_judge"])
-        
-        self.eval_df['model_is_correct'] = self.eval_df.apply(lambda x: math_verify_score(x[self.pred_col], x[self.gt_col], x[self.response_col]), axis=1)
-        if strict_boxed:
-            self.keep_subset = self.eval_df[
-                (self.eval_df['model_is_correct'] == 1.0) | ((self.eval_df['model_is_correct'] == 0.0) & (~self.eval_df["if_boxed"]))
-                ].reset_index(drop=True)
-            
-            self.check_subset  = self.eval_df[
-                (self.eval_df['model_is_correct'] == 0.0) & (self.eval_df["if_boxed"])
-            ].reset_index(drop=True)
+        self.eval_df['model_is_correct'] = self.eval_df.apply(
+                lambda x: math_verify_score(x[self.pred_col], x[self.gt_col], x[self.response_col]),
+                axis=1
+            )            
+        if strict_has_answer:
+            self.eval_df.loc[self.eval_df[self.response_col] == self.eval_df[self.pred_col], 'model_is_correct'] = 0.0
+            self.check_subset = self.eval_df[
+                self.eval_df[self.response_col] != self.eval_df[self.pred_col]
+            ]
         else:
-            self.keep_subset = self.eval_df[(self.eval_df['model_is_correct'] == 1.0)].reset_index(drop=True)
-            self.check_subset = self.eval_df[(self.eval_df['model_is_correct'] == 0.0)].reset_index(drop=True)
+            self.check_subset = self.eval_df
+
+        if strict_boxed:
+            self.check_subset  = self.check_subset[
+                (self.eval_df['model_is_correct'] == 0.0) & (self.eval_df["if_boxed"])
+            ]
+        else:
+            self.check_subset = self.check_subset[(self.check_subset['model_is_correct'] == 0.0)]
         
         self.check_subset['model_pred'] = self.check_subset.apply(self.extract_pred, axis=1)
-        self.check_subset = self.check_subset.drop(columns = ['model_is_correct'])
-        
+        self.check_subset = self.check_subset.drop(columns = ['model_is_correct']).reset_index(drop=True)
+
         engine = OpenAI_Engine(
             input_df=self.check_subset,
             prompt_template=PROMPT_TEMPLATE,
@@ -149,21 +154,23 @@ class ModelJudge():
             self.result_df = self.strict_has_answer(self.result_df)
         return self.result_df
     
-    def strict_has_answer(self, df: pd.DataFrame) -> pd.DataFrame:
-        df.loc[df[self.response_col] == df[self.pred_col], 'model_is_correct'] = 0.0
-        return df
-    
 if __name__ == "__main__":
     """
     Example usage:
     python reward_score/model-judge.py \
-      --input_filepath ./results/allmath/benchmark/LIMO-Qwen-32B.pickle \
-      --output_dir ./results/allmath/benchmark/model_judge \
-      --nick_name LIMO-Qwen-32B
+      --input_filepath ./results/allmath/teacher_guide/R1-Distill-Qwen-7B.pickle \
+      --output_dir ./results/allmath/teacher_guide/model_judge \
+      --nick_name R1-Distill-Qwen-7B
 
     python reward_score/model-judge.py \
-      --input_dir ./results/allmath/benchmark \
-      --output_dir ./results/allmath/benchmark/model_judge
+      --input_dir ./results/allmath/teacher_guide \
+      --output_dir ./results/allmath/teacher_guide/model_judge
+
+    python reward_score/model-judge.py \
+      --input_dir ./results/allmath/teacher_guide \
+      --output_dir ./results/allmath/teacher_guide/model_judge \
+      --parallel \
+      --max_workers 5
     """
 
     parser = argparse.ArgumentParser(
@@ -173,13 +180,15 @@ if __name__ == "__main__":
     parser.add_argument("--input_filepath", type=str, required=False, help="Path to input pickle file.")
     parser.add_argument("--output_dir", type=str, required=True, help="Directory to save outputs.")
     parser.add_argument("--nick_name", type=str, required=False, help="Nickname for this run.")
+    parser.add_argument("--parallel", action="store_true", help="Process all files in input_dir in parallel (single pass).")
+    parser.add_argument("--max_workers", type=int, default=None, help="Max parallel processes (default: CPU count).")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing outputs if set.")
     
     args = parser.parse_args()
     problem_col = "problem"
     gt_col = "ground_truth"
     pred_col = "pred"
-    response_col = "response"
+    response_col = "student_response"
     strict_boxed = False
     strict_has_answer = True
     
@@ -194,10 +203,52 @@ if __name__ == "__main__":
             output_dir=args.output_dir,
             nick_name=args.nick_name
         )
-        judge_engine.run(overwrite=args.overwrite, strict_boxed=strict_boxed)
-        result_df = judge_engine.merge(strict_has_answer=strict_has_answer)
+        judge_engine.run(
+            overwrite=args.overwrite,
+            strict_has_answer=strict_has_answer,
+            strict_boxed=strict_boxed
+            )
+        result_df = judge_engine.merge()
         result_df.to_pickle(os.path.join(args.output_dir, f"{args.nick_name}.pickle"))
-        
+    
+    elif args.input_dir and args.parallel:
+        files = [f for f in os.listdir(args.input_dir) if f.endswith(".pickle")]
+
+        def process_one(fname):
+            import os, pandas as pd
+            nick = fname.replace(".pickle", "")
+            out_path = os.path.join(args.output_dir, fname)
+
+            if (not args.overwrite) and os.path.exists(out_path):
+                print(f"Skipping {fname} because it already exists")
+                return fname
+
+            strict_has_answer_local = False if "LIMO" in nick else strict_has_answer
+
+            print(f"Starting to judge {nick}")
+            df = pd.read_pickle(os.path.join(args.input_dir, fname))
+            engine = ModelJudge(
+                input_df=df,
+                problem_col=problem_col,
+                gt_col=gt_col,
+                response_col=response_col,
+                pred_col=pred_col,
+                output_dir=args.output_dir,
+                nick_name=nick,
+            )
+            engine.run(
+                overwrite=args.overwrite,
+                strict_has_answer=strict_has_answer_local,
+                strict_boxed=strict_boxed
+                )
+            result = engine.merge()
+            result.to_pickle(out_path)
+            print(f"Finished judging {nick}")
+            return fname
+
+        with ProcessPoolExecutor(max_workers=args.max_workers) as ex:
+            list(ex.map(process_one, files))
+
     elif args.input_dir:
         finished = []
         time_limit = 10 * 60 * 60 # 10 hours
@@ -217,7 +268,10 @@ if __name__ == "__main__":
                         continue
                     
                     if "LIMO" in nick_name:
-                        strict_has_answer = False
+                        strict_has_answer_local = False
+                    else:
+                        strict_has_answer_local = strict_has_answer
+                        
                     judge_engine = ModelJudge(
                         input_df=input_df,
                         problem_col=problem_col,
@@ -229,8 +283,12 @@ if __name__ == "__main__":
                     )
                     
                     print(f"Starting to judge {nick_name}")
-                    judge_engine.run(overwrite=args.overwrite, strict_boxed=strict_boxed)
-                    result_df = judge_engine.merge(strict_has_answer=strict_has_answer)
+                    judge_engine.run(
+                        overwrite=args.overwrite,
+                        strict_has_answer=strict_has_answer_local,
+                        strict_boxed=strict_boxed
+                        )
+                    result_df = judge_engine.merge()
                     result_df.to_pickle(os.path.join(args.output_dir, fname))
                     print(f"Finished judging {nick_name}")
                     finished.append(fname) 
