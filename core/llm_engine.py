@@ -41,7 +41,7 @@ class ModelConfig:
     enforce_eager: bool = True
     # === ADDED: data-parallel controls ===
     data_parallel_replicas: int = 1           
-    ray_address: Optional[str] = "auto"
+    ray_address: Optional[str] = None
 
 # === ADDED: lightweight Ray worker hosting a vLLM instance ===
 @ray.remote(num_gpus=1)
@@ -50,6 +50,7 @@ class _VLLMWorker:
         cfg = dict(cfg)
         cfg.setdefault("tensor_parallel_size", 1)
         cfg.setdefault("pipeline_parallel_size", 1)
+        os.environ.setdefault("HF_HUB_OFFLINE", "1")
 
         self.model = LLM(
             model=cfg["model_name"],
@@ -99,23 +100,26 @@ class OpenLMEngine:
         if hasattr(self, "model"):
             logging.info("Model already loaded, skipping reload.")
             return
-
-        logging.info(f"Loading model: {self.model_name}")
-        self.model = LLM(
-            model=self.model_name,
-            tokenizer=self.tokenizer_name,
-            dtype=self.config.dtype,
-            gpu_memory_utilization=self.config.gpu_memory_utilization,
-            max_model_len=self.config.max_model_len,
-            max_num_batched_tokens=self.config.max_num_batched_tokens,
-            tensor_parallel_size=self.config.tensor_parallel_size,
-            pipeline_parallel_size=self.config.pipeline_parallel_size,
-            distributed_executor_backend=self.config.distributed_executor_backend,
-            trust_remote_code=self.config.trust_remote_code,
-            enable_chunked_prefill=self.config.enable_chunked_prefill,
-            enable_prefix_caching=self.config.enable_prefix_caching,
-            enforce_eager=self.config.enforce_eager
-        )
+        
+        if not self._dp_enabled:
+            logging.info(f"Loading model: {self.model_name}")
+            self.model = LLM(
+                model=self.model_name,
+                tokenizer=self.tokenizer_name,
+                dtype=self.config.dtype,
+                gpu_memory_utilization=self.config.gpu_memory_utilization,
+                max_model_len=self.config.max_model_len,
+                max_num_batched_tokens=self.config.max_num_batched_tokens,
+                tensor_parallel_size=self.config.tensor_parallel_size,
+                pipeline_parallel_size=self.config.pipeline_parallel_size,
+                distributed_executor_backend=self.config.distributed_executor_backend,
+                trust_remote_code=self.config.trust_remote_code,
+                enable_chunked_prefill=self.config.enable_chunked_prefill,
+                enable_prefix_caching=self.config.enable_prefix_caching,
+                enforce_eager=self.config.enforce_eager
+            )
+        else:
+            _ = AutoModelForCausalLM.from_pretrained(self.model_name, trust_remote_code=self.config.trust_remote_code) # download model weights from HF
 
         self.sampling_params = {
             "n": self.config.n,
@@ -151,7 +155,7 @@ class OpenLMEngine:
             "max_num_batched_tokens": self.config.max_num_batched_tokens,
             "tensor_parallel_size": 1,              # DP per replica
             "pipeline_parallel_size": 1,
-            "distributed_executor_backend": self.config.distributed_executor_backend,
+            "distributed_executor_backend": "mp",
             "trust_remote_code": self.config.trust_remote_code,
             "enable_chunked_prefill": self.config.enable_chunked_prefill,
             "enable_prefix_caching": self.config.enable_prefix_caching,
@@ -197,15 +201,25 @@ class OpenLMEngine:
 
         k = len(self._workers)
         shards: List[List[str]] = [[] for _ in range(k)]
+        params_shards: Optional[List[Optional[List[Dict]]]] = None
+        if new_sampling_params is not None:
+            if len(new_sampling_params) != len(prompts):
+                raise ValueError("len(new_sampling_params) must equal len(prompts) in DP mode.")
+            params_shards = [[] for _ in range(k)]
+
         for i, p in enumerate(prompts):
-            shards[i % k].append(p)
+            r = i % k
+            shards[r].append(p)
+            if params_shards is not None:
+                params_shards[r].append(new_sampling_params[i])
 
         start = time.monotonic()
         try:
             pending = []
-            for worker, shard in zip(self._workers, shards):
+            for idx, (worker, shard) in enumerate(zip(self._workers, shards)):
                 if shard:
-                    pending.append(worker.generate.remote(shard, new_sampling_params))
+                    pshard = None if params_shards is None else params_shards[idx]
+                    pending.append(worker.generate.remote(shard, pshard))
             results: List[List[str]] = ray.get(pending) if pending else []
         except Exception as e:
             logging.error(f"DP generation error: {e}")
@@ -288,11 +302,7 @@ if __name__ == '__main__':
         max_tokens=8192,
         temperature=0.6,
         top_p=1.0,
-        top_k=-1,
-
-        # === EXAMPLE: enable 2-way data parallel on two A6000s ===
-        data_parallel_replicas=2,      # <- set to number of GPUs / replicas
-        ray_address=None               # or "auto" if connecting to an existing Ray cluster
+        top_k=-1
     )
     engine = OpenLMEngine(config)
     engine.console_chat_completions()
