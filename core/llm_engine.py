@@ -5,7 +5,7 @@ from typing import Union, List, Optional, Dict
 from dataclasses import dataclass
 
 import pandas as pd
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, AutoModelForCausalLM
 from vllm import LLM, SamplingParams
 
 # === ADDED ===
@@ -34,7 +34,7 @@ class ModelConfig:
     max_num_batched_tokens: Optional[int] = None
     tensor_parallel_size: int = 1
     pipeline_parallel_size: int = 1
-    distributed_executor_backend: str = 'ray'
+    distributed_executor_backend: str = 'mp'
     trust_remote_code: bool = True
     enable_chunked_prefill: bool = True
     enable_prefix_caching: bool = True
@@ -43,14 +43,13 @@ class ModelConfig:
     data_parallel_replicas: int = 1           
     ray_address: Optional[str] = None
 
-# === ADDED: lightweight Ray worker hosting a vLLM instance ===
-@ray.remote(num_gpus=1)
+@ray.remote(num_gpus=1, num_cpus=2)
 class _VLLMWorker:
     def __init__(self, cfg: Dict, sampling_params: Dict):
         cfg = dict(cfg)
         cfg.setdefault("tensor_parallel_size", 1)
         cfg.setdefault("pipeline_parallel_size", 1)
-        os.environ.setdefault("HF_HUB_OFFLINE", "1")
+        # os.environ.setdefault("HF_HUB_OFFLINE", 1)
 
         self.model = LLM(
             model=cfg["model_name"],

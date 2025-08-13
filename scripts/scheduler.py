@@ -8,12 +8,12 @@ from pathlib import Path
 from collections import deque
 import sys
 
-def load_models(yaml_path):
+def load_models(yaml_path, default_gpu_num=1):
     """Loads model configurations from a YAML file."""
     try:
         with open(yaml_path, 'r') as f:
             config = yaml.safe_load(f)
-    except FileNotFoundError:
+    except FileNotFoundError:   
         print(f"Error: Models file not found at {yaml_path}", file=sys.stderr)
         sys.exit(1)
     except yaml.YAMLError as e:
@@ -27,7 +27,7 @@ def load_models(yaml_path):
                 models.append({
                     'model_name': m['model_name'],
                     'nick_name': m['nick_name'],
-                    'gpu_num': m.get('gpu_num', 1)
+                    'gpu_num': m.get('gpu_num', default_gpu_num)
                 })
     return models
 
@@ -52,9 +52,10 @@ def get_available_gpus():
 def main():
     """
     python scripts/scheduler.py \
-        --models-yaml config/control_study.yaml \
-        --benchmark-script scripts/math/stress-test/multi-gpu/benchmark_eval.sh \
-        --poll-interval 5
+        --models-yaml config/market_models.yaml \
+        --benchmark-script scripts/math/stress-test/multi-gpu/teacher_guide.sh \
+        --poll-interval 5 \
+        --gpu-num 4
     ps aux | grep benchmark_eval.sh | grep -v grep
     """
     parser = argparse.ArgumentParser(description="GPU job scheduler for model benchmarks.")
@@ -65,6 +66,8 @@ def main():
                         help="Path to the benchmark evaluation script.")
     parser.add_argument('--poll-interval', type=int, default=5,
                         help="Interval in seconds to poll for finished jobs and free GPUs.")
+    parser.add_argument('--gpu-num', type=int, default=1,
+                        help="Default number of GPUs to assign to each model (overridden by per-model config).")
 
     args = parser.parse_args()
 
@@ -83,8 +86,12 @@ def main():
     
     print(f"Scheduler starting with {len(all_gpus)} GPUs: {all_gpus}", file=sys.stderr)
 
-    models = load_models(args.models_yaml)
-    models.sort(key=lambda m: m.get('gpu_num', 1), reverse=True)
+    models = load_models(args.models_yaml, args.gpu_num)
+    # Apply default gpu_num to models that don't have it specified
+    for model in models:
+        if 'gpu_num' not in model:
+            model['gpu_num'] = args.gpu_num
+    models.sort(key=lambda m: m.get('gpu_num', args.gpu_num), reverse=True)
     models_to_run = deque(models)
 
     if not models_to_run:
