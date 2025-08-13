@@ -56,6 +56,7 @@ class TeacherGuide(OpenLMEngine):
         results_dir: str,
         sample_size: int,
         tensor_parallel_size: int = 1,
+        data_parallel_replicas: int = 1,
         gpu_memory_utilization: float = 0.85,
         dtype: str = "bfloat16",
         max_tokens: int = 32768,
@@ -77,6 +78,7 @@ class TeacherGuide(OpenLMEngine):
         self.results_dir = results_dir
         self.sample_size = sample_size
         self.tensor_parallel_size = tensor_parallel_size
+        self.data_parallel_replicas = data_parallel_replicas
         self.gpu_memory_utilization = gpu_memory_utilization
         self.dtype = dtype
         self.max_tokens = max_tokens
@@ -110,6 +112,7 @@ class TeacherGuide(OpenLMEngine):
                 model_name=self.model_name,
                 tokenizer_name=self.tokenizer_name,
                 tensor_parallel_size=self.tensor_parallel_size,
+                data_parallel_replicas=self.data_parallel_replicas,
                 gpu_memory_utilization=self.gpu_memory_utilization,
                 dtype=self.dtype,
                 max_tokens=self.max_tokens,
@@ -324,6 +327,8 @@ if __name__=="__main__":
     
     parser.add_argument("--tensor_parallel_size", type=int, default=1,
                         help="Number of GPUs for tensor parallelism")
+    parser.add_argument("--data_parallel_replicas", type=int, default=1,
+                        help="Number of GPUs for data parallelism")
     parser.add_argument("--gpu_memory_utilization", type=float, default=0.85,
                         help="Fraction of GPU memory to allocate")
     parser.add_argument("--dtype", type=str, default="bfloat16",
