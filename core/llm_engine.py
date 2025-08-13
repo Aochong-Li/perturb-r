@@ -80,7 +80,7 @@ class OpenLMEngine:
             "prompt_logprobs": self.config.prompt_logprobs,
         }
         
-        self.tokenizer = AutoTokenizer.from_pretrained(self.tokenizer_name)
+        self.tokenizer = AutoTokenizer.from_pretrained(self.tokenizer_name, trust_remote_code=self.config.trust_remote_code)
         self.tokenizer.model_max_length = self.config.max_model_len
 
     def generate(self, prompts: Union[str, List[str]], new_sampling_params: Optional[List[Dict]] = None) -> pd.DataFrame:
