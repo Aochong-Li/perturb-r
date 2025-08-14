@@ -23,10 +23,11 @@ python benchmark_eval.py \
   --split_name            test \
   --output_dir            "$OUTPUT_DIR" \
   --tensor_parallel_size  $(echo "$GPU_ID" | awk -F',' '{print NF}') \
-  --gpu_memory_utilization 0.9 \
+  --data_parallel_size    1 \
+  --gpu_memory_utilization 0.75 \
   --dtype                 bfloat16 \
-  --max_tokens            16384 \
-  --max_num_batched_tokens 16384 \
+  --max_tokens            20480 \
+  --max_num_batched_tokens 8192 \
   --temperature           0.6 \
   --top_p                 0.95 \
   --top_k                -1 \

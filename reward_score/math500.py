@@ -320,8 +320,7 @@ def strip_string(string):
 if __name__ == "__main__":
     """
     conda activate zero
-    python reward_score/math500.py --file_path ./results/math500amc23/benchmark
-    python reward_score/math500.py --input_dir ./results/allmath/benchmark --overwrite
+    python reward_score/math500.py --input_dir ./results/math500amc23/benchmark
     """
     parser = argparse.ArgumentParser()
     parser.add_argument("--file_path", type=str, required=False)
@@ -332,6 +331,8 @@ if __name__ == "__main__":
 
     pred_col = "pred"
     gt_col = "ground_truth"
+    if_strict_answer = True
+
     if "benchmark" in source:
         response_col = "response"
     elif "corrupt" in source:
@@ -339,7 +340,11 @@ if __name__ == "__main__":
     
     if args.file_path:
         df = pd.read_pickle(args.file_path)
-        df["model_is_correct"] = df.apply(lambda x: math_verify_score(x["pred"], x["gt"], x["response"]), axis=1)
+        if "gt" in df.columns:
+            df = df.rename(columns={"gt": gt_col})
+            df.to_pickle(os.path.join(args.input_dir, fname))
+            
+        df["model_is_correct"] = df.apply(lambda x: math_verify_score(x[pred_col], x[gt_col], x[response_col]), axis=1)
         df.to_pickle(args.file_path)
 
     else:
@@ -347,6 +352,9 @@ if __name__ == "__main__":
             if fname.endswith(".pickle"):
                 print("Evaluating {}".format(fname))
                 df = pd.read_pickle(os.path.join(args.input_dir, fname))
+                if "gt" in df.columns:
+                    df = df.rename(columns={"gt": gt_col})
+                    df.to_pickle(os.path.join(args.input_dir, fname))
                 
                 if ("model_is_correct" in df.columns 
                     or "original_correct" in df.columns 
@@ -355,9 +363,13 @@ if __name__ == "__main__":
                     continue
                 
                 if "distract" in source:
-                    df["original_correct"] = df.apply(lambda x: math_verify_score(x["pred"], x["solution"], x["post_distraction_response"]), axis=1)
-                    df["distractor_correct"] = df.apply(lambda x: math_verify_score(x["pred"], x["distractor_solution"], x["post_distraction_response"]), axis=1)
+                    response_col = "post_distraction_response"
+                    df["original_correct"] = df.apply(lambda x: math_verify_score(x["pred"], x["solution"], x[response_col]), axis=1)
+                    df["distractor_correct"] = df.apply(lambda x: math_verify_score(x["pred"], x["distractor_solution"], x[response_col]), axis=1)
                 else:
                     df["model_is_correct"] = df.apply(lambda x: math_verify_score(x[pred_col], x[gt_col], x[response_col]), axis=1)
+                
+                if if_strict_answer:
+                    df.loc[df[response_col] == df[pred_col], "model_is_correct"] = 0.0
 
                 df.to_pickle(os.path.join(args.input_dir, fname))

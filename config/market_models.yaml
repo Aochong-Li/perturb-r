@@ -30,8 +30,8 @@ models:
   #   nick_name: "R1-Distill-Llama-8B"
 
   # Community models
-  - model_name: "zwhe99/DeepMath-Zero-7B"
-    nick_name: "DeepMath-Zero-7B"
+  # - model_name: "zwhe99/DeepMath-Zero-7B"
+  #   nick_name: "DeepMath-Zero-7B"
     
   # - model_name: "open-thoughts/OpenThinker3-1.5B"
   #   nick_name: "OpenThinker3-1.5B"
@@ -45,8 +45,8 @@ models:
   # - model_name: "zwhe99/DeepMath-1.5B"
   #   nick_name: "DeepMath-1.5B"
 
-  - model_name: "GAIR/LIMO"
-    nick_name: "LIMO-Qwen-32B"
+  # - model_name: "GAIR/LIMO"
+  #   nick_name: "LIMO-Qwen-32B"
 
   # - model_name: "a-m-team/AM-Thinking-v1"
   #   nick_name: "AM-Distill-Qwen-32B"
@@ -60,4 +60,10 @@ models:
   
   # - model_name: "Qwen/Qwen3-235B-A22B-Thinking-2507"
   #   nick_name: "Qwen3-235B-A22B"
+
+
+  # GPT OSS
+  - model_name: "openai/gpt-oss-20b"
+    nick_name: "GPT-OSS-20B"
+
 

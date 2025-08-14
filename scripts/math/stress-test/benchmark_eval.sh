@@ -1,13 +1,13 @@
 #!/bin/bash
 set -ex
-export CUDA_VISIBLE_DEVICES=0,1
+export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
 
 # -------- static bits you rarely touch --------
 MODELS_YAML="config/market_models.yaml"
-DATASET_NAME="math8k_medium"
-SPLIT="test"
+DATASET_NAME="deepscaler"
+SPLIT="train"
 SAMPLE_K=1
-DATASET_PATH="aochongoliverli/math8k_medium"
+DATASET_PATH="agentica-org/DeepScaleR-Preview-Dataset"
 OUTPUT_DIR="./results/${DATASET_NAME}/benchmark"
 # ----------------------------------------------
 
@@ -31,8 +31,9 @@ echo "$MODELS_INFO" | while IFS=, read -r model_name nick_name; do
     --dataset_name_or_path $DATASET_PATH \
     --split_name $SPLIT \
     --output_dir $OUTPUT_DIR \
-    --tensor_parallel_size 2 \
-    --gpu_memory_utilization 0.9 \
+    --tensor_parallel_size 1 \
+    --data_parallel_size 8 \
+    --gpu_memory_utilization 0.75 \
     --dtype bfloat16 \
     --max_tokens 32768 \
     --temperature 0.6 \

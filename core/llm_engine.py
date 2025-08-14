@@ -33,17 +33,16 @@ class ModelConfig:
     dtype: str = 'bfloat16'
     max_num_batched_tokens: Optional[int] = None
     tensor_parallel_size: int = 1
+    data_parallel_size: int = 1
     pipeline_parallel_size: int = 1
     distributed_executor_backend: str = 'mp'
     trust_remote_code: bool = True
     enable_chunked_prefill: bool = True
     enable_prefix_caching: bool = True
     enforce_eager: bool = True
-    # === ADDED: data-parallel controls ===
-    data_parallel_replicas: int = 1           
-    ray_address: Optional[str] = None
+    ray_address: Optional[str] = None  
 
-@ray.remote(num_gpus=1, num_cpus=2)
+@ray.remote(num_gpus=1, num_cpus=1)
 class _VLLMWorker:
     def __init__(self, cfg: Dict, sampling_params: Dict):
         cfg = dict(cfg)
@@ -70,7 +69,7 @@ class _VLLMWorker:
         self.tokenizer_name = cfg.get("tokenizer_name") or cfg["model_name"]
         self.trust_remote_code = cfg["trust_remote_code"]
 
-    def generate(self, prompts: List[str], new_sampling_params: Optional[List[Dict]] = None) -> List[str]:
+    def generate(self, prompts: List[str], new_sampling_params: Optional[List[Dict]] = None) -> List[List[str]]:
         if not prompts:
             return []
         if new_sampling_params is not None:
@@ -78,7 +77,7 @@ class _VLLMWorker:
         else:
             sp = SamplingParams(**self._sampling_params_base)
         outs = self.model.generate(prompts=prompts, sampling_params=sp)
-        return [o.text for req in outs for o in req.outputs]
+        return [[o.text for o in req.outputs] for req in outs]
 
 class OpenLMEngine:
     """
@@ -88,8 +87,8 @@ class OpenLMEngine:
         self.config = config
         self.model_name = config.model_name
         self.tokenizer_name = config.tokenizer_name or config.model_name
-        self._dp_enabled = (self.config.data_parallel_replicas or 1) > 1
-        self._workers = None  # filled if DP enabled
+        self._dp_enabled = self.config.data_parallel_size > 1
+        self._workers = None
         self._load_model_and_tokenizer()
         if self._dp_enabled:
             self._init_data_parallel()
@@ -143,8 +142,7 @@ class OpenLMEngine:
             else:
                 ray.init(ignore_reinit_error=True)
 
-        replicas = max(1, int(self.config.data_parallel_replicas))
-
+        replicas = max(1, int(self.config.data_parallel_size))
         cfg_dict = {
             "model_name": self.config.model_name,
             "tokenizer_name": self.config.tokenizer_name or self.config.model_name,
@@ -171,6 +169,24 @@ class OpenLMEngine:
         """
         if isinstance(prompts, str):
             prompts = [prompts]
+        
+        if "gpt-oss" in self.model_name.lower():
+            if new_sampling_params is None:
+                new_sampling_params = len(prompts) * [
+                    {
+                        "skip_special_tokens": False,
+                        "spaces_between_special_tokens": True,
+                        "stop": ["<|return|>", "<|call|>"]
+                    }
+                ]
+            else:
+                update_sampling_params = []
+                for new_params in new_sampling_params:
+                    new_params["skip_special_tokens"] = False
+                    new_params["spaces_between_special_tokens"] = True
+                    new_params["stop"] = ["<|return|>", "<|call|>"]
+                    update_sampling_params.append(new_params)
+                new_sampling_params = update_sampling_params
 
         # Single-replica (default) path: unchanged
         if not self._dp_enabled:
@@ -200,6 +216,7 @@ class OpenLMEngine:
 
         k = len(self._workers)
         shards: List[List[str]] = [[] for _ in range(k)]
+        idx_shards: List[List[int]] = [[] for _ in range(k)]
         params_shards: Optional[List[Optional[List[Dict]]]] = None
         if new_sampling_params is not None:
             if len(new_sampling_params) != len(prompts):
@@ -209,24 +226,35 @@ class OpenLMEngine:
         for i, p in enumerate(prompts):
             r = i % k
             shards[r].append(p)
+            idx_shards[r].append(i)
             if params_shards is not None:
                 params_shards[r].append(new_sampling_params[i])
 
         start = time.monotonic()
         try:
             pending = []
+            which_worker: List[int] = []
             for idx, (worker, shard) in enumerate(zip(self._workers, shards)):
                 if shard:
                     pshard = None if params_shards is None else params_shards[idx]
                     pending.append(worker.generate.remote(shard, pshard))
-            results: List[List[str]] = ray.get(pending) if pending else []
+                    which_worker.append(idx)
+            results: List[List[List[str]]] = ray.get(pending) if pending else []
         except Exception as e:
             logging.error(f"DP generation error: {e}")
             raise e
         duration = time.monotonic() - start
         logging.info(f"[DP] Generated {len(prompts)} prompt(s) across {k} replica(s) in {duration:.2f}s")
 
-        flat = [r for group in results for r in group]
+        # Reassemble per original prompt order, then flatten to match single-replica behavior
+        per_prompt_grouped: Dict[int, List[str]] = {}
+        for shard_result, shard_idx in zip(results, which_worker):
+            for local_pos, global_idx in enumerate(idx_shards[shard_idx]):
+                per_prompt_grouped[global_idx] = shard_result[local_pos]
+
+        flat: List[str] = []
+        for i in range(len(prompts)):
+            flat.extend(per_prompt_grouped.get(i, []))
         return pd.DataFrame(flat, columns=['response'])
 
     def console_generate(self) -> None:

@@ -52,10 +52,10 @@ def get_available_gpus():
 def main():
     """
     python scripts/scheduler.py \
-        --models-yaml config/market_models.yaml \
-        --benchmark-script scripts/math/stress-test/multi-gpu/teacher_guide.sh \
+        --models-yaml config/control_study.yaml \
+        --benchmark-script scripts/math/stress-test/multi-gpu/benchmark_eval.sh \
         --poll-interval 5 \
-        --gpu-num 4
+        --gpu-num 2
     ps aux | grep benchmark_eval.sh | grep -v grep
     """
     parser = argparse.ArgumentParser(description="GPU job scheduler for model benchmarks.")

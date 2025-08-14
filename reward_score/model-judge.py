@@ -151,8 +151,6 @@ class ModelJudge():
             right_index=True).drop(columns=['model_pred'])
 
         self.result_df = pd.concat([self.keep_subset, self.check_subset], axis=0, ignore_index=True)
-        if strict_has_answer:
-            self.result_df = self.strict_has_answer(self.result_df)
         return self.result_df
     
 if __name__ == "__main__":
@@ -168,10 +166,10 @@ if __name__ == "__main__":
       --output_dir ./results/allmath/teacher_guide/model_judge
 
     python reward_score/model-judge.py \
-      --input_dir ./results/allmath/teacher_guide \
-      --output_dir ./results/allmath/teacher_guide/model_judge \
+      --input_dir ./results/allmath/inject_distractor \
+      --output_dir ./results/allmath/inject_distractor/model_judge \
       --parallel \
-      --max_workers 5
+      --max_workers 4
     """
 
     parser = argparse.ArgumentParser(
@@ -189,7 +187,7 @@ if __name__ == "__main__":
     problem_col = "problem"
     gt_col = "ground_truth"
     pred_col = "pred"
-    response_col = "student_response"
+    response_col = "post_distraction_response"
     strict_boxed = False
     strict_has_answer = True
     
