@@ -52,8 +52,8 @@ def get_available_gpus():
 def main():
     """
     python scripts/scheduler.py \
-        --models-yaml config/market_models.yaml \
-        --benchmark-script scripts/math/stress-test/multi-gpu/teacher_guide.sh \
+        --models-yaml config/control_study.yaml \
+        --benchmark-script scripts/math/stress-test/multi-gpu/teacher_guide_ct.sh \
         --poll-interval 5 \
         --gpu-num 4
     ps aux | grep benchmark_eval.sh | grep -v grep
@@ -91,7 +91,7 @@ def main():
     for model in models:
         if 'gpu_num' not in model:
             model['gpu_num'] = args.gpu_num
-    models.sort(key=lambda m: m.get('gpu_num', args.gpu_num), reverse=True)
+    models.sort(key=lambda m: m.get('gpu_num', args.gpu_num), reverse=False)
     models_to_run = deque(models)
 
     if not models_to_run:

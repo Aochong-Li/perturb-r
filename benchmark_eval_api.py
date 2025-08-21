@@ -31,6 +31,7 @@ class BenchmarkEval(OpenLMEngine):
                  sample_size: int = None,
                  output_dir: str = './results/hendrycks_math/sample200/benchmark_eval',
                  tensor_parallel_size: int = 1,
+                 data_parallel_size: int = 1,
                  gpu_memory_utilization: float = 0.85,
                  dtype: str = "bfloat16",
                  system_prompt: str = None, 
@@ -50,6 +51,7 @@ class BenchmarkEval(OpenLMEngine):
         self.nick_name = nick_name
         self.output_dir = output_dir
         self.tensor_parallel_size = tensor_parallel_size
+        self.data_parallel_size = data_parallel_size
         self.gpu_memory_utilization = gpu_memory_utilization
         self.dtype = dtype
         self.max_tokens = max_tokens
@@ -84,6 +86,7 @@ class BenchmarkEval(OpenLMEngine):
                 model_name=model_name,
                 tokenizer_name=tokenizer_name,
                 tensor_parallel_size=self.tensor_parallel_size,
+                data_parallel_size=self.data_parallel_size,
                 gpu_memory_utilization=self.gpu_memory_utilization,
                 dtype=self.dtype,
                 max_tokens=self.max_tokens,
@@ -93,13 +96,11 @@ class BenchmarkEval(OpenLMEngine):
                 n = self.sample_k,
                 max_num_batched_tokens=self.max_num_batched_tokens
             )
-            # Download model weights if not already downloaded
-            # _ = AutoModelForCausalLM.from_pretrained(self.model_name, trust_remote_code=True)
             # Initialize parent class
             # _ = AutoModelForCausalLM.from_pretrained(model_name)
             super().__init__(config=config)
             self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-            
+        
         print(f"Start evaluating {self.nick_name} on dataset: {dataset_name_or_path} | subset: {subset_name} | split: {split_name} | avg@{self.sample_k}")
 
     def load_dataset(self, dataset_name: str, subset_name: str, split_name: str, sample_size: int) -> None:
@@ -114,6 +115,14 @@ class BenchmarkEval(OpenLMEngine):
         
         self.df = pd.DataFrame(dataset)
         
+        # HACK
+        root_dir = os.path.dirname(self.output_dir)
+        common_problems = pd.read_pickle(os.path.join(root_dir, 'low_pr_problems.pickle'))
+        self.df = self.df.loc[self.df['problem'].isin(common_problems)].reset_index(drop=True)
+        # self.df = self.df.loc[self.df.index.repeat(self.sample_k)].reset_index(drop=True)
+        # self.sample_k = 1
+        # END HACK
+        
         if sample_size:
             self.df = self.df.sample(n=sample_size, random_state=45).reset_index(drop = True)
 
@@ -125,10 +134,10 @@ class BenchmarkEval(OpenLMEngine):
             chat_history.insert(0, {'role': 'system', 'content': self.system_prompt})
 
         tokenized_prompt = self.tokenizer.apply_chat_template(
-            chat_history,
-            tokenize = False,
-            add_generation_prompt = True
-        )
+                chat_history,
+                tokenize = False,
+                add_generation_prompt = True
+            )
         
         return tokenized_prompt
     
@@ -146,22 +155,30 @@ class BenchmarkEval(OpenLMEngine):
         self.df.to_pickle(self.output_filepath)
 
         # Evaluate results
-        self.result_df = self.df.copy()
-        self.result_df['pred'] = self.result_df['response'].apply(lambda x: x.split('</think>')[-1].strip() if '</think>' in x else x)
-        self.result_df['gt'] = self.result_df['solution']
-        
-        self.result_df['if_boxed'] = self.result_df['response'].apply(math_if_boxed)
+        try:
+            self.result_df = self.df.copy().dropna(subset=['response'])
+            self.result_df['pred'] = self.result_df['response'].apply(lambda x: x.split('</think>')[-1].strip() if '</think>' in x else x)
+            self.result_df['ground_truth'] = self.result_df['solution']
+        except:
+            print(f"Error evaluating {self.nick_name}")
+            
+        try:
+            self.result_df['if_boxed'] = self.result_df['response'].apply(math_if_boxed)
+        except:
+            self.result_df['if_boxed'] = None
         self.result_df.to_pickle(self.output_filepath)
         
     def api_eval(self) -> None:
         os.makedirs(self.output_dir + "/api", exist_ok=True)
-        self.df["prompt"] = self.df["problem"]
+        # HACK
+        self.df["prompt"] = self.df["problem"] + '\n\n' + self.system_prompt
+        # END HACK
 
         import pdb; pdb.set_trace()
         engine = OpenAI_Engine(
             input_df=self.df,
             prompt_template="{prompt}",
-            system_message=self.system_prompt if self.system_prompt else "",
+            # system_message=self.system_prompt if self.system_prompt else "",
             template_map={"prompt": "prompt"},
             nick_name=f"benchmark_eval_{self.nick_name}",
             batch_io_root=str(Path.home()) + "/research/openai_batch_io/reasoning",
@@ -174,13 +191,13 @@ class BenchmarkEval(OpenLMEngine):
             n=self.sample_k,
             mode="chat_completions"
         )
-        engine.run_model(overwrite=self.overwrite)
+        # engine.run_model(overwrite=self.overwrite)
         self.response = engine.retrieve_outputs(overwrite=self.overwrite)
         self.response = self.response.set_index('idx').explode(['response']).reset_index(drop=True)
 
     def local_eval(self) -> None:
-        prompts = self.df['problem'].apply(self.apply_chat_template)
-        self.response = self.generate(prompts=prompts)
+        self.df["prompt"] = self.df["problem"].apply(self.apply_chat_template)
+        self.response = self.generate(prompts=self.df["prompt"])
 
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description="Parse Arguments for Reasoner QA evaluation")
@@ -198,6 +215,8 @@ if __name__=="__main__":
 
     parser.add_argument("--tensor_parallel_size", type=int, default=2,
                         help="Number of GPUs for tensor parallelism")
+    parser.add_argument("--data_parallel_size", type=int, default=1,
+                        help="Number of GPUs for data parallelism")
     parser.add_argument("--gpu_memory_utilization", type=float, default=0.75,
                         help="Fraction of GPU memory to allocate")
     parser.add_argument("--dtype", type=str, default="bfloat16",
@@ -221,13 +240,9 @@ if __name__=="__main__":
                         help="Name of the client to use")
     args = parser.parse_args()
 
-<<<<<<< HEAD
-    SYSTEM_PROMPT = None # "You are the smartest mathematician in the world. Please reason step by step and put the final answer inside \\boxed{} tag."
-=======
-    SYSTEM_PROMPT = None # "Please put the final answer inside \\boxed{} tag."
+    # HACK
+    SYSTEM_PROMPT = "Please put the final answer inside \\boxed{} tag."
     # "You are the smartest mathematician in the world. Please reason step by step and put the final answer inside \\boxed{} tag."
->>>>>>> 7efdf08b467e6541b74328144656122d6e2d3e98
-    
     engine = BenchmarkEval(
         **vars(args),
         system_prompt=SYSTEM_PROMPT

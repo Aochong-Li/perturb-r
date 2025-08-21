@@ -47,7 +47,7 @@ class ModelConfig:
 class _VLLMWorker:
     def __init__(self, cfg: Dict, sampling_params: Dict):
         cfg = dict(cfg)
-        cfg.setdefault("tensor_parallel_size", 1)
+        cfg.setdefault("tensor_parallel_size", cfg.get("tensor_parallel_size", 1))
         cfg.setdefault("pipeline_parallel_size", 1)
         # os.environ.setdefault("HF_HUB_OFFLINE", 1)
 
@@ -152,7 +152,7 @@ class OpenLMEngine:
             "gpu_memory_utilization": self.config.gpu_memory_utilization,
             "max_model_len": self.config.max_model_len,
             "max_num_batched_tokens": self.config.max_num_batched_tokens,
-            "tensor_parallel_size": 1,              # DP per replica
+            "tensor_parallel_size": self.config.tensor_parallel_size,
             "pipeline_parallel_size": 1,
             "distributed_executor_backend": "mp",
             "trust_remote_code": self.config.trust_remote_code,
@@ -211,6 +211,14 @@ class OpenLMEngine:
             shards[r].append(p)
             if params_shards is not None:
                 params_shards[r].append(new_sampling_params[i])
+
+        if new_sampling_params is not None:
+            sampling_params = [
+                SamplingParams(**{**self.sampling_params, **over})
+                for over in new_sampling_params
+            ]
+        else:
+            sampling_params = SamplingParams(**self.sampling_params)
 
         start = time.monotonic()
         try:
