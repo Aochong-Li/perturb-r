@@ -100,22 +100,21 @@ class InjectDistractor(OpenLMEngine):
     def load_dataset(self) -> None:
         self.dataset_path = os.path.join(self.results_dir, "benchmark", f"{self.nick_name}.pickle")
         self.df = pd.read_pickle(self.dataset_path)
+        # HACK: Only evaluate on MATH500 questions
+        self.df = self.df[self.df["source"] == "math500"]
+        #
+
         self.k = self.df.groupby('problem').size().max()
         self.df['response_tokens'] = self.df.apply(
             lambda x: len(self.tokenizer.encode(x['response'])) if x['model_is_correct'] else self.max_position_embeddings,
             axis = 1
         )
         self.original_df = self.df.copy()
-    
+        
         self.rate = self.df.groupby('problem').agg({'model_is_correct': 'sum', 'response_tokens': 'min'}) \
             .reset_index().rename(columns = {"model_is_correct": "solve_n", "response_tokens": "min_tokens"})
         prob_df = self.rate[(self.rate['solve_n'] > 0) & (self.rate['min_tokens'] < self.max_position_embeddings - BUFFER_TOKENS)]
         self.df = self.df[self.df.problem.isin(prob_df.problem)]
-        # HACK: restirct problems in distraction_problems.pickle
-        distraction_problems = pd.read_pickle(os.path.join(self.results_dir, "distraction_problems.pickle"))
-        self.df = self.df[self.df['problem'].isin(distraction_problems)]
-        prob_df = prob_df[prob_df['problem'].isin(distraction_problems)]
-        # END HACK
         
         inv_counts = (
             prob_df.groupby('solve_n')['problem']
@@ -209,7 +208,7 @@ class InjectDistractor(OpenLMEngine):
         self.df = self.df[(self.df['original_ratio'] + self.df['distractor_ratio'] <= 1.0)].reset_index(drop=True)
 
         self.distractors = self.distractors.sample(n=len(self.df), replace=True, random_state=42).reset_index(drop=True)
-        self.df = pd.concat([self.df, self.distractors], axis=1).reset_index(drop=True)
+        self.df = pd.concat([self.df, self.distractors], axis=1)
 
         self.df["reasoning_w_distractor"] = self.df.apply(self.generate_distract_reasoning, axis=1)
 
@@ -281,9 +280,9 @@ if __name__=="__main__":
     parser.add_argument("--tokenizer_name", type=str, required=True, help="Name of the tokenizer to use")
     parser.add_argument("--results_dir", type=str, default='/share/goyal/lio/reasoning/eval/', 
                        help="Directory to save evaluation results")
-    parser.add_argument("--sample_size", type=int, default=100,
+    parser.add_argument("--sample_size", type=int, default=250,
                         help="Number of problems to sample for the stress test")
-    parser.add_argument("--num_distract_candidates", type=int, default=50,
+    parser.add_argument("--num_distract_candidates", type=int, default=20,
                         help="Number of problems to use as distractors")
     
     parser.add_argument("--tensor_parallel_size", type=int, default=1,

@@ -17,12 +17,23 @@ from utils.corrupt_num import *
 from more_itertools import chunked
 
 TEACHERS = [
-        'Qwen3-235B-A22B-2507',
-        'DeepSeek-R1-0528',
-        'QwQ-32B',
-        'Qwen3-235B-A22B', 
-        'DeepSeek-R1'
-    ]
+        'AM-Distill-Qwen-32B',
+        'Qwen3-32B',
+        'QwQ-32B'
+        ]
+GLOBAL_STEPS = ["100", "200", "300", "400", "500"]
+FILE_NAMES = [
+         'Qwen2.5-3B-math8k-AM-distill-step100.pickle',
+        'Qwen2.5-3B-math8k-AM-distill-step200.pickle',
+        'Qwen2.5-3B-math8k-AM-distill-step300.pickle',
+        'Qwen2.5-3B-math8k-AM-distill-step400.pickle',
+        'Qwen2.5-3B-math8k-AM-sft-400-step20.pickle',
+        'Qwen2.5-3B-math8k-AM-sft-400-step40.pickle',
+        'Qwen2.5-3B-math8k-AM-sft-400-step60.pickle',
+        'Qwen2.5-3B-math8k-AM-sft-400-step80.pickle',
+        'Qwen2.5-3B-math8k-AM-sft-400-step100.pickle',
+        'Qwen2.5-3B-math8k-AM-sft-400-step120.pickle'
+]
 
 class TeacherGuide(OpenLMEngine):
     def __init__(
@@ -40,6 +51,7 @@ class TeacherGuide(OpenLMEngine):
         top_p: float = 1.0,
         top_k: int = -1,
         num_responses_per_problem: int = 1,
+        min_solve_n: int = 0,
         max_solve_n: int = 1,
         max_num_batched_tokens: int = 8192,
         mini_batch_size: int = None,
@@ -61,6 +73,7 @@ class TeacherGuide(OpenLMEngine):
         self.top_p = top_p
         self.top_k = top_k
         self.num_responses_per_problem = num_responses_per_problem
+        self.min_solve_n = min_solve_n
         self.max_solve_n = max_solve_n
         self.max_num_batched_tokens = max_num_batched_tokens
         self.mini_batch_size = mini_batch_size
@@ -70,7 +83,7 @@ class TeacherGuide(OpenLMEngine):
         self.client_name = client_name
 
         # Create output directory if it doesn't exist
-        self.output_dir = os.path.join(self.results_dir, "teacher_guide")
+        self.output_dir = os.path.join(self.results_dir, f"teacher_guide_min{self.min_solve_n}_max{self.max_solve_n}")
         os.makedirs(self.output_dir, exist_ok=True)
         
         out_pickle = os.path.join(self.output_dir, f"{self.nick_name}.pickle")
@@ -100,6 +113,7 @@ class TeacherGuide(OpenLMEngine):
 
             # Initialize parent class
             super().__init__(config=config)
+            # self.tokenizer = AutoTokenizer.from_pretrained(self.tokenizer_name)
         else:
             # API mode still needs a tokenizer for templating and token counts
             self.tokenizer = AutoTokenizer.from_pretrained(self.tokenizer_name, trust_remote_code=True)
@@ -128,40 +142,60 @@ class TeacherGuide(OpenLMEngine):
     def build_teacher_pool(self):
         teacher_df = []
         for teacher_name in TEACHERS:
-            df = self.read_benchmark_df(teacher_name)
+            # df = self.read_benchmark_df(teacher_name)
+            # HACK
+            df = pd.read_pickle(os.path.join("./results/allmath/benchmark", f"{teacher_name}.pickle"))
+            df["model_is_correct"] = df["model_is_correct"].apply(self.convert_model_is_correct)
+            # END HACK
             df["teacher"] = teacher_name
-            df = df[(df['model_is_correct'] == 1.0) & (df['pred'] != '')]
+            df = df[df['model_is_correct'] == 1.0]
             
             for col in ["error", "retries", "is_correct", "if_answer", "model_judge"]:
                 if col in df.columns:
                     df=df.drop(columns = [col])
             
             teacher_df.append(df)
-        teacher_df = pd.concat(teacher_df, ignore_index=True)
-        teacher_df = teacher_df[["problem", "response", "teacher"]].rename(columns = {"response": "teacher_response"})
-        
-        return teacher_df
+        self.teacher_df = pd.concat(teacher_df, ignore_index=True)
+        self.teacher_df = self.teacher_df.drop_duplicates(subset = ["teacher","problem"]).reset_index(drop=True)
+        self.teacher_df = self.teacher_df[["problem", "teacher", "response"]].rename(columns = {"response": "teacher_response"})
     
-    def load_dataset(self) -> None:
-        self.df = self.read_benchmark_df(self.nick_name)
-        stats = self.df.groupby("problem")[["model_is_correct"]].sum().reset_index().rename(columns = {"model_is_correct": "solve_n"})
-        stats = stats[stats["solve_n"] <= self.max_solve_n].reset_index(drop=True)
+    def build_problem_pool(self):
+        common_problems = []        
+        def filter_problems(df: pd.DataFrame) -> list[str]:
+            stats = df.groupby("problem")[["model_is_correct"]].sum().reset_index().rename(columns = {"model_is_correct": "solve_n"})
+            return set(stats[stats["solve_n"].between(self.min_solve_n, self.max_solve_n)]["problem"])
         
-        self.teacher_df = self.build_teacher_pool()
-        self.cross_tier_df = pd.read_pickle(os.path.join(self.results_dir, 'teachability_common_problems.pickle'))
-        self.cross_tier_df = self.cross_tier_df.rename(columns = {'response': 'teacher_response'})
-        self.teacher_df = pd.concat([self.teacher_df, self.cross_tier_df], ignore_index=True) \
-            .drop_duplicates(subset = ["problem", "teacher"]).reset_index(drop=True)
-        self.teacher_df["cross_tier"] = self.teacher_df["problem"].isin(self.cross_tier_df["problem"])
-        self.teacher_df = self.teacher_df[['problem', 'teacher', 'teacher_response', 'cross_tier']]
+        for fname in os.listdir(os.path.join(self.results_dir, "benchmark")):
+            if not fname.endswith(".pickle"):
+                continue
+            
+            # HACK
+            if fname not in FILE_NAMES:
+                continue
+            # if "step" not in fname or not any(step in fname for step in GLOBAL_STEPS):
+            #     continue
 
-        self.df = self.df[["problem", "solution", "source"]].drop_duplicates(subset = ["problem"])
-        self.df = self.df.merge(stats, on = "problem").reset_index(drop=True).rename(columns = {"solve_n": "student_solve_n"})
+            print(f"Loading {fname}")
+            df = pd.read_pickle(os.path.join(self.results_dir, "benchmark", fname))
+            df["model_is_correct"] = df["model_is_correct"].apply(self.convert_model_is_correct)
+            problems = filter_problems(df)
+            common_problems.append(problems)
+        common_problems = set.intersection(*common_problems)
+        
+        return list(common_problems)
 
+    def load_dataset(self) -> None:
+        common_problems = self.build_problem_pool()
+        self.build_teacher_pool()
+
+        self.df = self.read_benchmark_df(self.nick_name)
+        self.df = self.df[self.df["problem"].isin(common_problems)]
+        self.df = self.df[["problem", "solution", "source"]].drop_duplicates(subset = ["problem"]).reset_index(drop=True)
+
+        self.df = self.df.merge(self.teacher_df, on = "problem").reset_index(drop=True)
         if self.sample_size is not None:
             self.df = self.df.sample(n = self.sample_size, random_state = 42).reset_index(drop=True)
 
-        self.df = self.df.merge(self.teacher_df, on = "problem").reset_index(drop=True)
         print(f"Loaded {len(self.df)} data with teacher guidance")
         
     def guide(self, row):
@@ -266,10 +300,12 @@ if __name__=="__main__":
     parser.add_argument("--tokenizer_name", type=str, required=True, help="Name of the tokenizer to use")
     parser.add_argument("--results_dir", type=str, default='/share/goyal/lio/reasoning/eval/', 
                        help="Directory to save evaluation results")
-    parser.add_argument("--sample_size", type=int, default=None,
-                        help="Number of problems to sample for the stress test")
+    parser.add_argument("--min_solve_n", type=int, default=0,
+                        help="Minimum number of problems to solve")
     parser.add_argument("--max_solve_n", type=int, default=1,
                         help="Maximum number of problems to solve")
+    parser.add_argument("--sample_size", type=int, default=None,
+                        help="Number of problems to sample for the stress test")
     
     parser.add_argument("--tensor_parallel_size", type=int, default=1,
                         help="Number of GPUs for tensor parallelism")
@@ -298,7 +334,6 @@ if __name__=="__main__":
                         help="Overwrite existing results")
     parser.add_argument("--client_name", type=str, default="",
                         help="Name of the client (for OpenAI or other APIs)")
-
     args = parser.parse_args()
     
     engine = TeacherGuide(

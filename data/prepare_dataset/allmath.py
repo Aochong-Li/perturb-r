@@ -23,6 +23,12 @@ def rename_columns(row, source):
     elif source == "minerva_math":
         row['problem'] = str(row['problem'])
         row['solution'] = str(row['solution'])
+    elif source == "olympiadbench":
+        row['problem'] = str(row['question'])
+        solution = str(row['final_answer'][0])
+        if solution[0] == '$' and solution[-1] == '$':
+            solution = solution[1:-1]
+        row['solution'] = solution
 
     row['source'] = source
     return row
@@ -30,9 +36,9 @@ def rename_columns(row, source):
 def main():
     """
     python data/prepare_dataset/allmath.py \
-        --output_dir ./data/math500amc23 \
+        --output_dir ./data/allmath_plus \
         --dataset_dir ../rlvr/Qwen2.5-Eval/evaluation/data \
-        --datasets amc23 math500
+        --datasets olympiadbench math500
     """    
     parser = argparse.ArgumentParser(description='Prepare allmath dataset')
     parser.add_argument('--output_dir', default='./data/allmath', 
@@ -47,17 +53,18 @@ def main():
     dataset_dir = args.dataset_dir
     dataset_names = args.datasets
 
+    import pdb; pdb.set_trace()
     datasets = []
     for dataset_name in dataset_names:
         dataset_path = os.path.join(dataset_dir, f"{dataset_name}/test.jsonl")
         df = pd.DataFrame(list(read_jsonl(dataset_path)))
-        # if dataset_name == "math500":
-        #     # we only keep level 5 question to ensure difficulty
-        #     df = df[df['level'] == 5]
+        if dataset_name == "math500":
+            # we only keep level 5 question to ensure difficulty
+            df = df[df['level'] != 5]
         df = df.apply(rename_columns, axis=1, args=(dataset_name,))
         datasets.append(df)
 
-    final_dataset = pd.concat(datasets)[['problem', 'solution', 'source']]
+    final_dataset = pd.concat(datasets, ignore_index=True)[['problem', 'solution', 'source']]
     final_dataset = DatasetDict({
         'test': Dataset.from_pandas(final_dataset, preserve_index=False)
     })

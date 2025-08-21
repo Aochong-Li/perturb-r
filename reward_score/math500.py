@@ -337,12 +337,14 @@ if __name__ == "__main__":
         response_col = "response"
     elif "corrupt" in source:
         response_col = "post_corruption_response"
+    elif "teacher" in source:
+        response_col = "student_response"
     
     if args.file_path:
         df = pd.read_pickle(args.file_path)
         if "gt" in df.columns:
             df = df.rename(columns={"gt": gt_col})
-            df.to_pickle(os.path.join(args.input_dir, fname))
+            df.to_pickle(args.file_path)
             
         df["model_is_correct"] = df.apply(lambda x: math_verify_score(x[pred_col], x[gt_col], x[response_col]), axis=1)
         df.to_pickle(args.file_path)
@@ -370,6 +372,7 @@ if __name__ == "__main__":
                     df["model_is_correct"] = df.apply(lambda x: math_verify_score(x[pred_col], x[gt_col], x[response_col]), axis=1)
                 
                 if if_strict_answer:
-                    df.loc[df[response_col] == df[pred_col], "model_is_correct"] = 0.0
+                    col_name = "model_is_correct" if "model_is_correct" in df.columns else "original_correct"
+                    df.loc[df[response_col] == df[pred_col], col_name] = 0.0
 
                 df.to_pickle(os.path.join(args.input_dir, fname))

@@ -7,24 +7,23 @@ MODEL=$2
 NICK=$3
 
 export CUDA_VISIBLE_DEVICES=$GPU_ID
-
-DATASET_NAME="allmath"
+DATASET_NAME="math500amc23"
 RESULTS_DIR="./results/${DATASET_NAME}"
 
-python stress-test/teacher_guide.py \
+python stress-test/inject_distractor_ct.py \
     --model_name "${MODEL}" \
     --nick_name "${NICK}" \
     --tokenizer_name "${MODEL}" \
     --results_dir "${RESULTS_DIR}" \
+    --sample_size 250 \
+    --num_distract_candidates 20 \
     --tensor_parallel_size $(echo "$GPU_ID" | awk -F',' '{print NF}') \
-    --gpu_memory_utilization 0.9 \
+    --gpu_memory_utilization 0.85 \
     --dtype bfloat16 \
-    --max_tokens 32768 \
+    --max_tokens 20480 \
     --temperature 0.6 \
     --top_p 0.95 \
     --top_k -1 \
     --granularity 30 \
-    --max_num_batched_tokens 32768 \
-    --num_responses_per_problem 1 \
-    --max_solve_n 1
-
+    --max_num_batched_tokens 8192 \
+    --unit 0.2

@@ -20,9 +20,32 @@ TEACHERS = [
         'Qwen3-235B-A22B-2507',
         'DeepSeek-R1-0528',
         'QwQ-32B',
+        'AM-Distill-Qwen-32B',
         'Qwen3-235B-A22B', 
-        'DeepSeek-R1'
+        'DeepSeek-R1', 
+        'Qwen3-32B',
+        'Qwen3-30B-A3B'
+        ]
+
+MODEL_TIERS = {
+    "A": [
+        "R1-Distill-Qwen-7B",
+        "LIMO-Qwen-32B",
+        "R1-Distill-Qwen-32B",
+        "OpenThinker3-7B"
+    ],
+    "B": [
+        "DeepMath-1.5B",
+        "DeepScaleR-1.5B-Preview",
+        "R1-Distill-Llama-8B",
+        "Qwen3-1.7B",
+        "OpenThinker3-1.5B"
+    ],
+    "C": [
+        "DeepMath-Zero-7B",
+        "R1-Distill-Qwen-1.5B"
     ]
+}
 
 class TeacherGuide(OpenLMEngine):
     def __init__(
@@ -125,38 +148,68 @@ class TeacherGuide(OpenLMEngine):
         df["model_is_correct"] = df["model_is_correct"].apply(self.convert_model_is_correct)
         return df
     
-    def build_teacher_pool(self):
+    def build_teacher_pool(self, cross_tier_problems: list[str] = None):
         teacher_df = []
         for teacher_name in TEACHERS:
             df = self.read_benchmark_df(teacher_name)
             df["teacher"] = teacher_name
-            df = df[(df['model_is_correct'] == 1.0) & (df['pred'] != '')]
+            df = df[df['model_is_correct'] == 1.0]
             
             for col in ["error", "retries", "is_correct", "if_answer", "model_judge"]:
                 if col in df.columns:
                     df=df.drop(columns = [col])
             
             teacher_df.append(df)
-        teacher_df = pd.concat(teacher_df, ignore_index=True)
-        teacher_df = teacher_df[["problem", "response", "teacher"]].rename(columns = {"response": "teacher_response"})
+        self.teacher_df = pd.concat(teacher_df, ignore_index=True)
         
-        return teacher_df
-    
-    def load_dataset(self) -> None:
-        self.df = self.read_benchmark_df(self.nick_name)
-        stats = self.df.groupby("problem")[["model_is_correct"]].sum().reset_index().rename(columns = {"model_is_correct": "solve_n"})
-        stats = stats[stats["solve_n"] <= self.max_solve_n].reset_index(drop=True)
-        
-        self.teacher_df = self.build_teacher_pool()
-        self.cross_tier_df = pd.read_pickle(os.path.join(self.results_dir, 'teachability_common_problems.pickle'))
-        self.cross_tier_df = self.cross_tier_df.rename(columns = {'response': 'teacher_response'})
-        self.teacher_df = pd.concat([self.teacher_df, self.cross_tier_df], ignore_index=True) \
-            .drop_duplicates(subset = ["problem", "teacher"]).reset_index(drop=True)
-        self.teacher_df["cross_tier"] = self.teacher_df["problem"].isin(self.cross_tier_df["problem"])
-        self.teacher_df = self.teacher_df[['problem', 'teacher', 'teacher_response', 'cross_tier']]
+        if cross_tier_problems is not None:
+            cross_tier_df = self.teacher_df[self.teacher_df["problem"].isin(cross_tier_problems)]
+            tier_df = self.teacher_df[~self.teacher_df["problem"].isin(cross_tier_problems)]
 
-        self.df = self.df[["problem", "solution", "source"]].drop_duplicates(subset = ["problem"])
-        self.df = self.df.merge(stats, on = "problem").reset_index(drop=True).rename(columns = {"solve_n": "student_solve_n"})
+            cross_tier_df = cross_tier_df.drop_duplicates(subset = ["problem", "teacher"]).reset_index(drop=True)
+            tier_df = tier_df.drop_duplicates(subset = ["problem"]).reset_index(drop=True)
+            
+            self.teacher_df = pd.concat([cross_tier_df, tier_df], ignore_index=True)
+        else:
+            self.teacher_df = self.teacher_df.drop_duplicates(subset = ["problem"]).reset_index(drop=True)
+        
+        self.teacher_df = self.teacher_df[["problem", "response", "teacher"]].rename(columns = {"response": "teacher_response"})
+    
+    def build_problem_pool(self):
+        tier = [tier for tier in MODEL_TIERS.keys() if self.nick_name in MODEL_TIERS[tier]]
+        if len(tier) == 0:
+            raise ValueError(f"Model {self.nick_name} not found in any tier")
+        tier = tier[0]
+
+        same_tier_problems = []        
+        def filter_hard_problems(df: pd.DataFrame) -> list[str]:
+            stats = df.groupby("problem")[["model_is_correct"]].sum().reset_index().rename(columns = {"model_is_correct": "solve_n"})
+            return set(stats[stats["solve_n"] <= self.max_solve_n]["problem"])
+        
+        for model_name in MODEL_TIERS[tier]:
+            df = self.read_benchmark_df(model_name)
+            problems = filter_hard_problems(df)
+            same_tier_problems.append(problems)
+        
+        same_tier_problems = set.intersection(*same_tier_problems)
+        
+        cross_tier_problems = []
+        models = [model for tier in MODEL_TIERS.keys() for model in MODEL_TIERS[tier]]
+        for model_name in models:
+            df = self.read_benchmark_df(model_name)
+            problems = filter_hard_problems(df)
+            cross_tier_problems.append(problems)
+        cross_tier_problems = set.intersection(*cross_tier_problems)
+        
+        return list(same_tier_problems), list(cross_tier_problems)
+
+    def load_dataset(self) -> None:
+        same_tier_problems, cross_tier_problems = self.build_problem_pool()
+        self.build_teacher_pool(cross_tier_problems)
+        self.df = self.read_benchmark_df(self.nick_name)
+        self.df = self.df[self.df["problem"].isin(same_tier_problems + cross_tier_problems)]
+        self.df["cross_tier"] = self.df["problem"].isin(cross_tier_problems)
+        self.df = self.df[["problem", "solution", "source", "cross_tier"]].drop_duplicates(subset = ["problem"]).reset_index(drop=True)
 
         if self.sample_size is not None:
             self.df = self.df.sample(n = self.sample_size, random_state = 42).reset_index(drop=True)
@@ -181,7 +234,7 @@ class TeacherGuide(OpenLMEngine):
         return "".join(teacher_chunks)
 
     def guide_reasoning(self):
-        windows = [0.2, 0.4, 0.6, 0.8]
+        windows = [0.1, 0.2, 0.4, 0.6, 0.8]
         self.df["ratio"] = len(self.df) * [windows]
         self.df = self.df.explode("ratio", ignore_index = True)
         self.df["teacher_reasoning"] = self.df.apply(self.guide, axis = 1)
@@ -268,8 +321,6 @@ if __name__=="__main__":
                        help="Directory to save evaluation results")
     parser.add_argument("--sample_size", type=int, default=None,
                         help="Number of problems to sample for the stress test")
-    parser.add_argument("--max_solve_n", type=int, default=1,
-                        help="Maximum number of problems to solve")
     
     parser.add_argument("--tensor_parallel_size", type=int, default=1,
                         help="Number of GPUs for tensor parallelism")

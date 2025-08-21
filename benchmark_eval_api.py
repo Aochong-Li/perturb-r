@@ -115,6 +115,14 @@ class BenchmarkEval(OpenLMEngine):
         
         self.df = pd.DataFrame(dataset)
         
+        # HACK
+        root_dir = os.path.dirname(self.output_dir)
+        common_problems = pd.read_pickle(os.path.join(root_dir, 'low_pr_problems.pickle'))
+        self.df = self.df.loc[self.df['problem'].isin(common_problems)].reset_index(drop=True)
+        # self.df = self.df.loc[self.df.index.repeat(self.sample_k)].reset_index(drop=True)
+        # self.sample_k = 1
+        # END HACK
+        
         if sample_size:
             self.df = self.df.sample(n=sample_size, random_state=45).reset_index(drop = True)
 
@@ -147,10 +155,13 @@ class BenchmarkEval(OpenLMEngine):
         self.df.to_pickle(self.output_filepath)
 
         # Evaluate results
-        self.result_df = self.df.copy()
-        self.result_df['pred'] = self.result_df['response'].apply(lambda x: x.split('</think>')[-1].strip() if '</think>' in x else x)
-        self.result_df['ground_truth'] = self.result_df['solution']
-        
+        try:
+            self.result_df = self.df.copy().dropna(subset=['response'])
+            self.result_df['pred'] = self.result_df['response'].apply(lambda x: x.split('</think>')[-1].strip() if '</think>' in x else x)
+            self.result_df['ground_truth'] = self.result_df['solution']
+        except:
+            print(f"Error evaluating {self.nick_name}")
+            
         try:
             self.result_df['if_boxed'] = self.result_df['response'].apply(math_if_boxed)
         except:
@@ -159,13 +170,15 @@ class BenchmarkEval(OpenLMEngine):
         
     def api_eval(self) -> None:
         os.makedirs(self.output_dir + "/api", exist_ok=True)
-        self.df["prompt"] = self.df["problem"]
+        # HACK
+        self.df["prompt"] = self.df["problem"] + '\n\n' + self.system_prompt
+        # END HACK
 
         import pdb; pdb.set_trace()
         engine = OpenAI_Engine(
             input_df=self.df,
             prompt_template="{prompt}",
-            system_message=self.system_prompt if self.system_prompt else "",
+            # system_message=self.system_prompt if self.system_prompt else "",
             template_map={"prompt": "prompt"},
             nick_name=f"benchmark_eval_{self.nick_name}",
             batch_io_root=str(Path.home()) + "/research/openai_batch_io/reasoning",
@@ -178,7 +191,7 @@ class BenchmarkEval(OpenLMEngine):
             n=self.sample_k,
             mode="chat_completions"
         )
-        engine.run_model(overwrite=self.overwrite)
+        # engine.run_model(overwrite=self.overwrite)
         self.response = engine.retrieve_outputs(overwrite=self.overwrite)
         self.response = self.response.set_index('idx').explode(['response']).reset_index(drop=True)
 
@@ -227,9 +240,9 @@ if __name__=="__main__":
                         help="Name of the client to use")
     args = parser.parse_args()
 
-    SYSTEM_PROMPT = None # "Please put the final answer inside \\boxed{} tag."
+    # HACK
+    SYSTEM_PROMPT = "Please put the final answer inside \\boxed{} tag."
     # "You are the smartest mathematician in the world. Please reason step by step and put the final answer inside \\boxed{} tag."
-    
     engine = BenchmarkEval(
         **vars(args),
         system_prompt=SYSTEM_PROMPT

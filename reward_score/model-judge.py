@@ -157,17 +157,17 @@ if __name__ == "__main__":
     """
     Example usage:
     python reward_score/model-judge.py \
-      --input_filepath ./results/allmath/teacher_guide/R1-Distill-Qwen-7B.pickle \
-      --output_dir ./results/allmath/teacher_guide/model_judge \
-      --nick_name R1-Distill-Qwen-7B
+      --input_filepath ./results/allmath_plus/benchmark/R1-Distill-Qwen-1.5B.pickle \
+      --output_dir ./results/allmath_plus/benchmark/model_judge \
+      --nick_name R1-Distill-Qwen-1.5B
+
+    python reward_score/model-judge.py \
+      --input_dir ./results/allmath_plus/benchmark \
+      --output_dir ./results/allmath_plus/benchmark/model_judge
 
     python reward_score/model-judge.py \
       --input_dir ./results/allmath/teacher_guide \
-      --output_dir ./results/allmath/teacher_guide/model_judge
-
-    python reward_score/model-judge.py \
-      --input_dir ./results/allmath/inject_distractor \
-      --output_dir ./results/allmath/inject_distractor/model_judge \
+      --output_dir ./results/allmath/teacher_guide/model_judge \
       --parallel \
       --max_workers 4
     """
@@ -183,11 +183,12 @@ if __name__ == "__main__":
     parser.add_argument("--max_workers", type=int, default=None, help="Max parallel processes (default: CPU count).")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing outputs if set.")
     
+    # TODO: check the column names are correct every time we run this script
     args = parser.parse_args()
     problem_col = "problem"
     gt_col = "ground_truth"
     pred_col = "pred"
-    response_col = "post_distraction_response"
+    response_col = "student_response"
     strict_boxed = False
     strict_has_answer = True
     
@@ -241,7 +242,7 @@ if __name__ == "__main__":
                 strict_boxed=strict_boxed
                 )
             result = engine.merge()
-            result.to_pickle(out_path)
+            result.to_pickle(os.path.join(args.input_dir, fname))
             print(f"Finished judging {nick}")
             return fname
 
@@ -266,10 +267,7 @@ if __name__ == "__main__":
                         finished.append(fname)
                         continue
                     
-                    if "LIMO" in nick_name:
-                        strict_has_answer_local = False
-                    else:
-                        strict_has_answer_local = strict_has_answer
+                    strict_has_answer_local = False if "LIMO" in nick_name else strict_has_answer
                         
                     judge_engine = ModelJudge(
                         input_df=input_df,
@@ -288,7 +286,7 @@ if __name__ == "__main__":
                         strict_boxed=strict_boxed
                         )
                     result_df = judge_engine.merge()
-                    result_df.to_pickle(os.path.join(args.output_dir, fname))
+                    result_df.to_pickle(os.path.join(args.input_dir, fname))
                     print(f"Finished judging {nick_name}")
                     finished.append(fname) 
             
