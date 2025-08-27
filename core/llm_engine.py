@@ -14,7 +14,8 @@ import ray
 
 # Allow longer max_model_len in vLLM
 os.environ["VLLM_ALLOW_LONG_MAX_MODEL_LEN"] = "1"
-os.environ["RAY_CGRAPH_get_timeout"] = "600"
+os.environ["RAY_CGRAPH_get_timeout"] = "1200"
+os.environ["VLLM_WORKER_MULTIPROC_METHOD"] = "spawn"
 
 @dataclass
 class ModelConfig:
@@ -34,7 +35,7 @@ class ModelConfig:
     max_num_batched_tokens: Optional[int] = None
     tensor_parallel_size: int = 1
     pipeline_parallel_size: int = 1
-    distributed_executor_backend: str = 'mp'
+    distributed_executor_backend: str = 'ray'
     trust_remote_code: bool = True
     enable_chunked_prefill: bool = True
     enable_prefix_caching: bool = True

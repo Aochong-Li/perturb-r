@@ -31,8 +31,7 @@ FILE_NAMES = [
         'Qwen2.5-3B-math8k-AM-sft-400-step40.pickle',
         'Qwen2.5-3B-math8k-AM-sft-400-step60.pickle',
         'Qwen2.5-3B-math8k-AM-sft-400-step80.pickle',
-        'Qwen2.5-3B-math8k-AM-sft-400-step100.pickle',
-        'Qwen2.5-3B-math8k-AM-sft-400-step120.pickle'
+        'Qwen2.5-3B-math8k-AM-sft-400-step100.pickle'
 ]
 
 class TeacherGuide(OpenLMEngine):

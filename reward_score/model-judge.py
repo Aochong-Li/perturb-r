@@ -159,17 +159,17 @@ if __name__ == "__main__":
     """
     Example usage:
     python reward_score/model-judge.py \
-      --input_filepath ./results/allmath_plus/benchmark/R1-Distill-Qwen-1.5B.pickle \
-      --output_dir ./results/allmath_plus/benchmark/model_judge \
-      --nick_name R1-Distill-Qwen-1.5B
+      --input_filepath ./results/allmath_sub/inject_distractor/R1-Distill-Llama-8B.pickle \
+      --output_dir ./results/allmath_sub/inject_distractor/model_judge \
+      --nick_name R1-Distill-Llama-8B
 
     python reward_score/model-judge.py \
-      --input_dir ./results/allmath_plus/benchmark \
-      --output_dir ./results/allmath_plus/benchmark/model_judge
+      --input_dir ./results/allmath/inject_distractor_head_ablation \
+      --output_dir ./results/allmath/inject_distractor_head_ablation/model_judge
 
     python reward_score/model-judge.py \
-      --input_dir ./results/allmath/teacher_guide \
-      --output_dir ./results/allmath/teacher_guide/model_judge \
+      --input_dir ./results/math500amc23/benchmark \
+      --output_dir ./results/math500amc23/benchmark/model_judge \
       --parallel \
       --max_workers 5
     """
@@ -190,10 +190,10 @@ if __name__ == "__main__":
     problem_col = "problem"
     gt_col = "ground_truth"
     pred_col = "pred"
-    response_col = "student_response"
+    response_col = "response"
     strict_boxed = False
     strict_has_answer = True
-    
+    import pdb; pdb.set_trace()
     if args.input_filepath:
         input_df = pd.read_pickle(args.input_filepath)
         judge_engine = ModelJudge(
@@ -215,6 +215,7 @@ if __name__ == "__main__":
     
     elif args.input_dir and args.parallel:
         files = [f for f in os.listdir(args.input_dir) if f.endswith(".pickle")]
+        files = [f for f in files if 'limo1000' in f]
 
         def process_one(fname):
             import os, pandas as pd

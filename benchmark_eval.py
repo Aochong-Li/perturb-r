@@ -45,7 +45,6 @@ class BenchmarkEval(OpenLMEngine):
                  filename_suffix: str = ''
                  ):
 
-        # Initialize attributes first
         self.model_name = model_name
         self.nick_name = nick_name
         self.output_dir = output_dir
@@ -94,11 +93,8 @@ class BenchmarkEval(OpenLMEngine):
                 max_num_batched_tokens=self.max_num_batched_tokens
             )
             # Download model weights if not already downloaded
-            # _ = AutoModelForCausalLM.from_pretrained(self.model_name, trust_remote_code=True)
-            # Initialize parent class
-            # _ = AutoModelForCausalLM.from_pretrained(model_name)
             super().__init__(config=config)
-            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+            # self.tokenizer = AutoTokenizer.from_pretrained(model_name)
             
         print(f"Start evaluating {self.nick_name} on dataset: {dataset_name_or_path} | subset: {subset_name} | split: {split_name} | avg@{self.sample_k}")
 
@@ -148,7 +144,7 @@ class BenchmarkEval(OpenLMEngine):
         # Evaluate results
         self.result_df = self.df.copy()
         self.result_df['pred'] = self.result_df['response'].apply(lambda x: x.split('</think>')[-1].strip() if '</think>' in x else x)
-        self.result_df['gt'] = self.result_df['solution']
+        self.result_df['ground_truth'] = self.result_df['solution']
         
         self.result_df['if_boxed'] = self.result_df['response'].apply(math_if_boxed)
         self.result_df.to_pickle(self.output_filepath)
@@ -221,12 +217,8 @@ if __name__=="__main__":
                         help="Name of the client to use")
     args = parser.parse_args()
 
-<<<<<<< HEAD
-    SYSTEM_PROMPT = None # "You are the smartest mathematician in the world. Please reason step by step and put the final answer inside \\boxed{} tag."
-=======
     SYSTEM_PROMPT = None # "Please put the final answer inside \\boxed{} tag."
     # "You are the smartest mathematician in the world. Please reason step by step and put the final answer inside \\boxed{} tag."
->>>>>>> 7efdf08b467e6541b74328144656122d6e2d3e98
     
     engine = BenchmarkEval(
         **vars(args),

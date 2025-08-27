@@ -321,7 +321,7 @@ if __name__ == "__main__":
     """
     conda activate zero
     python reward_score/math500.py --file_path ./results/math500amc23/benchmark
-    python reward_score/math500.py --input_dir ./results/allmath/benchmark --overwrite
+    python reward_score/math500.py --input_dir ./results/math500amc23/inject_distractor
     """
     parser = argparse.ArgumentParser()
     parser.add_argument("--file_path", type=str, required=False)
@@ -334,12 +334,12 @@ if __name__ == "__main__":
     gt_col = "ground_truth"
     if "benchmark" in source:
         response_col = "response"
-    elif "corrupt" in source:
-        response_col = "post_corruption_response"
+    elif "distract" in source:
+        response_col = "post_distraction_response"
     elif "teacher" in source:
         response_col = "student_response"
     
-    if_strict_answer = False  # Add this variable definition
+    if_strict_answer = True  # Add this variable definition
     
     if args.file_path:
         df = pd.read_pickle(args.file_path)
@@ -369,7 +369,7 @@ if __name__ == "__main__":
                     df["model_is_correct"] = df.apply(lambda x: math_verify_score(x[pred_col], x[gt_col], x[response_col]), axis=1)
                 
                 if if_strict_answer:
-                    col_name = "model_is_correct" if "model_is_correct" in df.columns else "original_correct"
-                    df.loc[df[response_col] == df[pred_col], col_name] = 0.0
+                    is_correct_col = "model_is_correct" if "model_is_correct" in df.columns else "original_correct"
+                    df.loc[df[response_col] == df[pred_col], is_correct_col] = 0.0
 
                 df.to_pickle(os.path.join(args.input_dir, fname))
