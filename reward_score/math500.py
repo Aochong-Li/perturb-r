@@ -339,8 +339,7 @@ if __name__ == "__main__":
     elif "teacher" in source:
         response_col = "student_response"
     
-    if_strict_answer = False
-    if_boxed = True
+    if_strict_answer = True  # Add this variable definition
     
     if args.file_path:
         df = pd.read_pickle(args.file_path)

@@ -217,8 +217,7 @@ if __name__=="__main__":
                         help="Name of the client to use")
     args = parser.parse_args()
 
-    SYSTEM_PROMPT = None # "Please put the final answer inside \\boxed{} tag."
-    # "You are the smartest mathematician in the world. Please reason step by step and put the final answer inside \\boxed{} tag."
+    SYSTEM_PROMPT = None # "You are the smartest mathematician in the world. Please reason step by step and put the final answer inside \\boxed{} tag."
     
     engine = BenchmarkEval(
         **vars(args),
