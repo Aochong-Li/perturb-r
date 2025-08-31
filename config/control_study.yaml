@@ -57,36 +57,49 @@ models:
   #   nick_name: "Qwen2.5-3B-math8k-AM-sft-400-step260"
 
   # Part 2: LIMO Hypothesis
-  # LIMO 
-  - model_name: "/share/goyal/lio/reasoning/model/sft/math8k/Qwen2.5-3B-limo-16k-50epochs-5e-5lr-first50steps/checkpoint-10"
-    nick_name: "Qwen2.5-3B-limo-step10"
+  # LIMO (Old)
+  # - model_name: "/share/goyal/lio/reasoning/model/sft/math8k_old/Qwen2.5-3B-limo-16k-30epochs-5e-5lr/checkpoint-50"
+  #   nick_name: "Qwen2.5-3B-limo-step50"
 
-  - model_name: "/share/goyal/lio/reasoning/model/sft/math8k/Qwen2.5-3B-limo-16k-50epochs-5e-5lr-first50steps/checkpoint-20"
-    nick_name: "Qwen2.5-3B-limo-step20"
+  # - model_name: "/share/goyal/lio/reasoning/model/sft/math8k_old/Qwen2.5-3B-limo-16k-30epochs-5e-5lr/checkpoint-100"
+  #   nick_name: "Qwen2.5-3B-limo-step100"
 
-  - model_name: "/share/goyal/lio/reasoning/model/sft/math8k/Qwen2.5-3B-limo-16k-50epochs-5e-5lr-first50steps/checkpoint-30"
-    nick_name: "Qwen2.5-3B-limo-step30"
+  # - model_name: "/share/goyal/lio/reasoning/model/sft/math8k_old/Qwen2.5-3B-limo-16k-30epochs-5e-5lr/checkpoint-200"
+  #   nick_name: "Qwen2.5-3B-limo-step200"
 
-  - model_name: "/share/goyal/lio/reasoning/model/sft/math8k/Qwen2.5-3B-limo-16k-50epochs-5e-5lr-first50steps/checkpoint-40"
-    nick_name: "Qwen2.5-3B-limo-step40"
-
-  - model_name: "/share/goyal/lio/reasoning/model/sft/math8k/Qwen2.5-3B-limo-16k-50epochs-5e-5lr-first50steps/checkpoint-50"
-    nick_name: "Qwen2.5-3B-limo-step50"
-  
-  - model_name: "/share/goyal/lio/reasoning/model/sft/math8k/Qwen2.5-3B-limo-16k-50epochs-5e-5lr/checkpoint-100"
-    nick_name: "Qwen2.5-3B-limo-step100"
-
-  - model_name: "/share/goyal/lio/reasoning/model/sft/math8k/Qwen2.5-3B-limo-16k-50epochs-5e-5lr/checkpoint-200"
-    nick_name: "Qwen2.5-3B-limo-step200"
-
-  - model_name: "/share/goyal/lio/reasoning/model/sft/math8k/Qwen2.5-3B-limo-16k-50epochs-5e-5lr/checkpoint-300"
+  - model_name: "/share/goyal/lio/reasoning/model/sft/math8k_old/Qwen2.5-3B-limo-16k-30epochs-5e-5lr/checkpoint-300"
     nick_name: "Qwen2.5-3B-limo-step300"
 
-  - model_name: "/share/goyal/lio/reasoning/model/sft/math8k/Qwen2.5-3B-limo-16k-50epochs-5e-5lr/checkpoint-400"
-    nick_name: "Qwen2.5-3B-limo-step400"
+  # LIMO (New)
+  # - model_name: "/share/goyal/lio/reasoning/model/sft/math8k/Qwen2.5-3B-limo-16k-50epochs-5e-5lr-first50steps/checkpoint-10"
+  #   nick_name: "Qwen2.5-3B-limo-step10"
 
-  - model_name: "/share/goyal/lio/reasoning/model/sft/math8k/Qwen2.5-3B-limo-16k-50epochs-5e-5lr/checkpoint-500"
-    nick_name: "Qwen2.5-3B-limo-step500"
+  # - model_name: "/share/goyal/lio/reasoning/model/sft/math8k/Qwen2.5-3B-limo-16k-50epochs-5e-5lr-first50steps/checkpoint-20"
+  #   nick_name: "Qwen2.5-3B-limo-step20"
+
+  # - model_name: "/share/goyal/lio/reasoning/model/sft/math8k/Qwen2.5-3B-limo-16k-50epochs-5e-5lr-first50steps/checkpoint-30"
+  #   nick_name: "Qwen2.5-3B-limo-step30"
+
+  # - model_name: "/share/goyal/lio/reasoning/model/sft/math8k/Qwen2.5-3B-limo-16k-50epochs-5e-5lr-first50steps/checkpoint-40"
+  #   nick_name: "Qwen2.5-3B-limo-step40"
+
+  # - model_name: "/share/goyal/lio/reasoning/model/sft/math8k/Qwen2.5-3B-limo-16k-50epochs-5e-5lr-first50steps/checkpoint-50"
+  #   nick_name: "Qwen2.5-3B-limo-step50"
+  
+  # - model_name: "/share/goyal/lio/reasoning/model/sft/math8k/Qwen2.5-3B-limo-16k-50epochs-5e-5lr/checkpoint-100"
+  #   nick_name: "Qwen2.5-3B-limo-step100"
+
+  # - model_name: "/share/goyal/lio/reasoning/model/sft/math8k/Qwen2.5-3B-limo-16k-50epochs-5e-5lr/checkpoint-200"
+  #   nick_name: "Qwen2.5-3B-limo-step200"
+
+  # - model_name: "/share/goyal/lio/reasoning/model/sft/math8k/Qwen2.5-3B-limo-16k-50epochs-5e-5lr/checkpoint-300"
+  #   nick_name: "Qwen2.5-3B-limo-step300"
+
+  # - model_name: "/share/goyal/lio/reasoning/model/sft/math8k/Qwen2.5-3B-limo-16k-50epochs-5e-5lr/checkpoint-400"
+  #   nick_name: "Qwen2.5-3B-limo-step400"
+
+  # - model_name: "/share/goyal/lio/reasoning/model/sft/math8k/Qwen2.5-3B-limo-16k-50epochs-5e-5lr/checkpoint-500"
+  #   nick_name: "Qwen2.5-3B-limo-step500"
 
   # LIMO 600
   # - model_name: "/share/goyal/lio/reasoning/model/sft/math8k/Qwen2.5-3B-math8k-distill-QwQ-32B-16k-limo600-35epochs-2e-5lr/checkpoint-40"

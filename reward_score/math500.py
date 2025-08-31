@@ -321,7 +321,7 @@ if __name__ == "__main__":
     """
     conda activate zero
     python reward_score/math500.py --file_path ./results/math500amc23/benchmark
-    python reward_score/math500.py --input_dir ./results/math500amc23/benchmark
+    python reward_score/math500.py --input_dir ./results/math500amc23/benchmark --overwrite
     """
     parser = argparse.ArgumentParser()
     parser.add_argument("--file_path", type=str, required=False)
@@ -339,7 +339,8 @@ if __name__ == "__main__":
     elif "teacher" in source:
         response_col = "student_response"
     
-    if_strict_answer = False  # Add this variable definition
+    if_strict_answer = False
+    if_boxed = True
     
     if args.file_path:
         df = pd.read_pickle(args.file_path)
@@ -368,8 +369,11 @@ if __name__ == "__main__":
                 else:
                     df["model_is_correct"] = df.apply(lambda x: math_verify_score(x[pred_col], x[gt_col], x[response_col]), axis=1)
                 
+                is_correct_col = "model_is_correct" if "model_is_correct" in df.columns else "original_correct"
                 if if_strict_answer:
-                    is_correct_col = "model_is_correct" if "model_is_correct" in df.columns else "original_correct"
                     df.loc[df[response_col] == df[pred_col], is_correct_col] = 0.0
+
+                if if_boxed:
+                    df.loc[~df["if_boxed"], is_correct_col] = 0.0
 
                 df.to_pickle(os.path.join(args.input_dir, fname))

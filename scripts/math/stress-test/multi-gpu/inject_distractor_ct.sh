@@ -7,7 +7,7 @@ MODEL=$2
 NICK=$3
 
 export CUDA_VISIBLE_DEVICES=$GPU_ID
-DATASET_NAME="math500amc23"
+DATASET_NAME="math500amc23_v1"
 RESULTS_DIR="./results/${DATASET_NAME}"
 
 python stress-test/inject_distractor_ct.py \
