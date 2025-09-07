@@ -92,6 +92,7 @@ class InjectDistractor(OpenLMEngine):
             )
             # Initialize parent class
             super().__init__(config=config)
+            self.tokenizer = AutoTokenizer.from_pretrained(self.tokenizer_name)
             
         self.load_dataset()
     
@@ -122,7 +123,8 @@ class InjectDistractor(OpenLMEngine):
             .rdiv(1.0)
         )
         prob_df['w'] = inv_counts / inv_counts.sum()
-        chosen = prob_df.sample(n=self.sample_size, weights='w', random_state=42)['problem'].tolist()
+        replace = False if self.sample_size < len(prob_df) else True
+        chosen = prob_df.sample(n=self.sample_size, weights='w', replace=replace, random_state=42)['problem'].tolist()
         self.df = self.df[
             self.df.problem.isin(chosen) &
             (self.df.model_is_correct == 1) &
@@ -313,7 +315,7 @@ if __name__=="__main__":
     parser.add_argument("--client_name", type=str, default="",
                         help="Name of the client (for OpenAI or other APIs)")
     args = parser.parse_args()
-    
+
     engine = InjectDistractor(
         **vars(args),
     )

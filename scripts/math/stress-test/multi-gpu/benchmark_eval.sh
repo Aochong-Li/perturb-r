@@ -10,7 +10,7 @@ NICK=$3
 DATASET_NAME="math500amc23"
 SAMPLE_K=8
 DATASET_PATH="./data/${DATASET_NAME}"
-OUTPUT_DIR="./results/${DATASET_NAME}/benchmark"
+OUTPUT_DIR="./results/math500amc23_v1/benchmark"
 # ----------------------------------------------
 
 export CUDA_VISIBLE_DEVICES=$GPU_ID

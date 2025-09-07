@@ -66,6 +66,8 @@ models:
   
   # - model_name: "aochongoliverli/Qwen2.5-3B-math8k-distill-QwQ-32B-16k-limo600-35epochs-2e-5lr-step80"
   #   nick_name: "Qwen2.5-3B-math8k-QwQ-limo600-step80"
+  # - model_name: "aochongoliverli/Qwen2.5-3B-math8k-distill-QwQ-32B-16k-limo600-35epochs-2e-5lr-step80"
+  #   nick_name: "Qwen2.5-3B-math8k-QwQ-limo600-step80"
   
   # - model_name: "aochongoliverli/Qwen2.5-3B-math8k-distill-QwQ-32B-16k-limo600-35epochs-2e-5lr-step100"
   #   nick_name: "Qwen2.5-3B-math8k-QwQ-limo600-step100"

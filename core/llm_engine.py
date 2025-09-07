@@ -35,7 +35,7 @@ class ModelConfig:
     max_num_batched_tokens: Optional[int] = None
     tensor_parallel_size: int = 1
     pipeline_parallel_size: int = 1
-    distributed_executor_backend: str = 'ray'
+    distributed_executor_backend: str = 'mp'
     trust_remote_code: bool = True
     enable_chunked_prefill: bool = True
     enable_prefix_caching: bool = True
@@ -303,11 +303,11 @@ class OpenLMEngine:
 
 if __name__ == '__main__':
     config = ModelConfig(
-        model_name="open-thoughts/OpenThinker3-7B",
-        tensor_parallel_size=1,
+        model_name="/mnt/home/al2644/research/projects/rlvr/sft/LLaMA-Factory/outputs/inception/Qwen2.5-3B-deepscaler-gptoss-high-16k-5epochs-4e-5lr/checkpoint-585",
+        tensor_parallel_size=2,
         gpu_memory_utilization=0.85,
         dtype="bfloat16",
-        max_tokens=8192,
+        max_tokens=16384,
         temperature=0.6,
         top_p=1.0,
         top_k=-1
