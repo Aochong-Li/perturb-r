@@ -58,29 +58,39 @@ models:
 
   # Part 2: LIMO Hypothesis
   # LIMO models  
-  - model_name: "aochongoliverli/Qwen2.5-3B-math8k-distill-QwQ-32B-16k-limo600-35epochs-2e-5lr-step40"
-    nick_name: "Qwen2.5-3B-math8k-QwQ-limo600-step40"
+  # - model_name: "aochongoliverli/Qwen2.5-3B-math8k-distill-QwQ-32B-16k-limo600-35epochs-2e-5lr-step40"
+  #   nick_name: "Qwen2.5-3B-math8k-QwQ-limo600-step40"
   
   # - model_name: "aochongoliverli/Qwen2.5-3B-math8k-distill-QwQ-32B-16k-limo600-35epochs-2e-5lr-step60"
   #   nick_name: "Qwen2.5-3B-math8k-QwQ-limo600-step60"
   
-  - model_name: "aochongoliverli/Qwen2.5-3B-math8k-distill-QwQ-32B-16k-limo600-35epochs-2e-5lr-step80"
-    nick_name: "Qwen2.5-3B-math8k-QwQ-limo600-step80"
+  # - model_name: "aochongoliverli/Qwen2.5-3B-math8k-distill-QwQ-32B-16k-limo600-35epochs-2e-5lr-step80"
+  #   nick_name: "Qwen2.5-3B-math8k-QwQ-limo600-step80"
   
   # - model_name: "aochongoliverli/Qwen2.5-3B-math8k-distill-QwQ-32B-16k-limo600-35epochs-2e-5lr-step100"
   #   nick_name: "Qwen2.5-3B-math8k-QwQ-limo600-step100"
 
-  - model_name: "aochongoliverli/Qwen2.5-3B-math8k-distill-QwQ-32B-16k-limo600-35epochs-2e-5lr-step120"
-    nick_name: "Qwen2.5-3B-math8k-QwQ-limo600-step120"
+  # - model_name: "aochongoliverli/Qwen2.5-3B-math8k-distill-QwQ-32B-16k-limo600-35epochs-2e-5lr-step120"
+  #   nick_name: "Qwen2.5-3B-math8k-QwQ-limo600-step120"
   
-  - model_name: "aochongoliverli/Qwen2.5-3B-math8k-distill-QwQ-32B-16k-limo600-35epochs-2e-5lr-step140"
-    nick_name: "Qwen2.5-3B-math8k-QwQ-limo600-step140"
+  # - model_name: "aochongoliverli/Qwen2.5-3B-math8k-distill-QwQ-32B-16k-limo600-35epochs-2e-5lr-step140"
+  #   nick_name: "Qwen2.5-3B-math8k-QwQ-limo600-step140"
 
-  - model_name: "aochongoliverli/Qwen2.5-3B-math8k-distill-QwQ-32B-16k-limo600-35epochs-2e-5lr-step160"
-    nick_name: "Qwen2.5-3B-math8k-QwQ-limo600-step160"
+  # - model_name: "aochongoliverli/Qwen2.5-3B-math8k-distill-QwQ-32B-16k-limo600-35epochs-2e-5lr-step160"
+  #   nick_name: "Qwen2.5-3B-math8k-QwQ-limo600-step160"
 
-  - model_name: "aochongoliverli/Qwen2.5-3B-math8k-distill-QwQ-32B-16k-limo600-35epochs-2e-5lr-step180"
-    nick_name: "Qwen2.5-3B-math8k-QwQ-limo600-step180"
+  # - model_name: "aochongoliverli/Qwen2.5-3B-math8k-distill-QwQ-32B-16k-limo600-35epochs-2e-5lr-step180"
+  #   nick_name: "Qwen2.5-3B-math8k-QwQ-limo600-step180"
+
+  # LIMO + QwQ
+  # - model_name: "/share/goyal/lio/reasoning/model/sft/math8k_old/Qwen2.5-3B-limo-qwq-16k-3epochs-5e-5lr/checkpoint-250"
+  #   nick_name: "Qwen2.5-3B-limo-qwq-step250"
+
+  # - model_name: "aochongoliverli/Qwen2.5-3B-limo-qwq-16k-3epochs-5e-5lr-step350"
+  #   nick_name: "Qwen2.5-3B-limo-qwq-step350"
+
+  # - model_name: "aochongoliverli/Qwen2.5-3B-limo-qwq-16k-3epochs-5e-5lr-step400"
+  #   nick_name: "Qwen2.5-3B-limo-qwq-step400"
 
   # Part 3: Different Teacher Models
   # AM-Distill-Qwen-32B Teacher
@@ -157,3 +167,62 @@ models:
 
   # - model_name: "aochongoliverli/Qwen2.5-3B-math8k-distill-QwQ-32B-16k-5epochs-5e-5lr-step600"
   #   nick_name: "Qwen2.5-3B-math8k-QwQ-distill-step600"
+
+
+### Qwen2.5 1.5B Series
+# AM-Distill-Qwen-32B Teacher
+  # - model_name: "/share/goyal/lio/reasoning/model/sft/math8k/Qwen2.5-1.5B-math8k-distill-AM-Distill-Qwen-32B-16k-5epochs-2e-5lr/checkpoint-100"
+  #   nick_name: "Qwen2.5-1.5B-AM-distill-step100"
+
+  # - model_name: "/share/goyal/lio/reasoning/model/sft/math8k/Qwen2.5-1.5B-math8k-distill-AM-Distill-Qwen-32B-16k-5epochs-2e-5lr/checkpoint-200"
+  #   nick_name: "Qwen2.5-1.5B-AM-distill-step200"
+
+  # - model_name: "/share/goyal/lio/reasoning/model/sft/math8k/Qwen2.5-1.5B-math8k-distill-AM-Distill-Qwen-32B-16k-5epochs-2e-5lr/checkpoint-300"
+  #   nick_name: "Qwen2.5-1.5B-AM-distill-step300"
+
+  # - model_name: "/share/goyal/lio/reasoning/model/sft/math8k/Qwen2.5-1.5B-math8k-distill-AM-Distill-Qwen-32B-16k-5epochs-2e-5lr/checkpoint-400"
+  #   nick_name: "Qwen2.5-1.5B-AM-distill-step400"
+    
+  # - model_name: "/share/goyal/lio/reasoning/model/sft/math8k/Qwen2.5-1.5B-math8k-distill-AM-Distill-Qwen-32B-16k-5epochs-2e-5lr/checkpoint-500"
+  #   nick_name: "Qwen2.5-1.5B-AM-distill-step500"
+
+  # - model_name: "/share/goyal/lio/reasoning/model/sft/math8k/Qwen2.5-1.5B-math8k-distill-AM-Distill-Qwen-32B-16k-5epochs-2e-5lr/checkpoint-600"
+  #   nick_name: "Qwen2.5-1.5B-AM-distill-step600"
+
+# QwQ-32B Teacher
+  # - model_name: "/share/goyal/lio/reasoning/model/sft/math8k/Qwen2.5-1.5B-math8k-distill-QwQ-32B-16k-5epochs-2e-5lr/checkpoint-100"
+  #   nick_name: "Qwen2.5-1.5B-QwQ-distill-step100"
+
+  # - model_name: "/share/goyal/lio/reasoning/model/sft/math8k/Qwen2.5-1.5B-math8k-distill-QwQ-32B-16k-5epochs-2e-5lr/checkpoint-200"
+  #   nick_name: "Qwen2.5-1.5B-QwQ-distill-step200"
+
+  # - model_name: "/share/goyal/lio/reasoning/model/sft/math8k/Qwen2.5-1.5B-math8k-distill-QwQ-32B-16k-5epochs-2e-5lr/checkpoint-300"
+  #   nick_name: "Qwen2.5-1.5B-QwQ-distill-step300"
+
+  # - model_name: "/share/goyal/lio/reasoning/model/sft/math8k/Qwen2.5-1.5B-math8k-distill-QwQ-32B-16k-5epochs-2e-5lr/checkpoint-400"
+  #   nick_name: "Qwen2.5-1.5B-QwQ-distill-step400"
+
+  # - model_name: "/share/goyal/lio/reasoning/model/sft/math8k/Qwen2.5-1.5B-math8k-distill-QwQ-32B-16k-5epochs-2e-5lr/checkpoint-500"
+  #   nick_name: "Qwen2.5-1.5B-QwQ-distill-step500"
+
+  # - model_name: "/share/goyal/lio/reasoning/model/sft/math8k/Qwen2.5-1.5B-math8k-distill-QwQ-32B-16k-5epochs-2e-5lr/checkpoint-600"
+  #   nick_name: "Qwen2.5-1.5B-QwQ-distill-step600"
+
+# Qwen3-32B Teacher (5e-5lr is used given Qwen3 converges slower)
+  - model_name: "aochongoliverli/Qwen2.5-1.5B-math8k-distill-Qwen3-32B-16k-5epochs-5e-5lr-step100"
+    nick_name: "Qwen2.5-1.5B-Qwen3-distill-step100"
+
+  - model_name: "aochongoliverli/Qwen2.5-1.5B-math8k-distill-Qwen3-32B-16k-5epochs-5e-5lr-step200"
+    nick_name: "Qwen2.5-1.5B-Qwen3-distill-step200"
+
+  - model_name: "aochongoliverli/Qwen2.5-1.5B-math8k-distill-Qwen3-32B-16k-5epochs-5e-5lr-step300"
+    nick_name: "Qwen2.5-1.5B-Qwen3-distill-step300"
+
+  - model_name: "aochongoliverli/Qwen2.5-1.5B-math8k-distill-Qwen3-32B-16k-5epochs-5e-5lr-step400"
+    nick_name: "Qwen2.5-1.5B-Qwen3-distill-step400"
+
+  - model_name: "aochongoliverli/Qwen2.5-1.5B-math8k-distill-Qwen3-32B-16k-5epochs-5e-5lr-step500"
+    nick_name: "Qwen2.5-1.5B-Qwen3-distill-step500"
+
+  - model_name: "aochongoliverli/Qwen2.5-1.5B-math8k-distill-Qwen3-32B-16k-5epochs-5e-5lr-step600"
+    nick_name: "Qwen2.5-1.5B-Qwen3-distill-step600"

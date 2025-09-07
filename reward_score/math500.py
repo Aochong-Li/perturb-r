@@ -321,7 +321,7 @@ if __name__ == "__main__":
     """
     conda activate zero
     python reward_score/math500.py --file_path ./results/math500amc23/benchmark
-    python reward_score/math500.py --input_dir ./results/math500amc23/benchmark --overwrite
+    python reward_score/math500.py --input_dir ./results/math500amc23/benchmark
     """
     parser = argparse.ArgumentParser()
     parser.add_argument("--file_path", type=str, required=False)
@@ -340,6 +340,7 @@ if __name__ == "__main__":
         response_col = "student_response"
     
     if_strict_answer = True  # Add this variable definition
+    if_boxed = True
     
     if args.file_path:
         df = pd.read_pickle(args.file_path)
@@ -355,6 +356,10 @@ if __name__ == "__main__":
             if fname.endswith(".pickle"):
                 print("Evaluating {}".format(fname))
                 df = pd.read_pickle(os.path.join(args.input_dir, fname))
+
+                if "gt" in df.columns:
+                    df = df.rename(columns={"gt": gt_col})
+                    df.to_pickle(os.path.join(args.input_dir, fname))
                 
                 if ("model_is_correct" in df.columns 
                     or "original_correct" in df.columns 
