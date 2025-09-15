@@ -1,9 +1,9 @@
 #!/bin/bash
 set -ex
-export CUDA_VISIBLE_DEVICES=0,1
+export CUDA_VISIBLE_DEVICES=0,1,2,3
 
 # -------- static bits you rarely touch --------
-MODELS_YAML="config/market_models.yaml"
+MODELS_YAML="config/control_study.yaml"
 DATASET_NAME="math8k_medium"
 SPLIT="test"
 SAMPLE_K=1

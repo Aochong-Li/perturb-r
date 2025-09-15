@@ -23,16 +23,22 @@ TEACHERS = [
         ]
 GLOBAL_STEPS = ["100", "200", "300", "400", "500"]
 FILE_NAMES = [
-         'Qwen2.5-3B-math8k-AM-distill-step100.pickle',
-        'Qwen2.5-3B-math8k-AM-distill-step200.pickle',
-        'Qwen2.5-3B-math8k-AM-distill-step300.pickle',
-        'Qwen2.5-3B-math8k-AM-distill-step400.pickle',
-        'Qwen2.5-3B-math8k-AM-sft-400-step20.pickle',
-        'Qwen2.5-3B-math8k-AM-sft-400-step40.pickle',
-        'Qwen2.5-3B-math8k-AM-sft-400-step60.pickle',
-        'Qwen2.5-3B-math8k-AM-sft-400-step80.pickle',
-        'Qwen2.5-3B-math8k-AM-sft-400-step100.pickle',
-        'Qwen2.5-3B-math8k-AM-sft-400-step120.pickle'
+    'Qwen2.5-1.5B-AM-distill-step100.pickle',
+    'Qwen2.5-1.5B-AM-distill-step200.pickle',
+    'Qwen2.5-1.5B-AM-distill-step300.pickle',
+    'Qwen2.5-1.5B-AM-distill-step400.pickle',
+    'Qwen2.5-1.5B-AM-distill-step500.pickle',
+    'Qwen2.5-1.5B-QwQ-distill-step100.pickle',
+    'Qwen2.5-1.5B-QwQ-distill-step200.pickle',
+    'Qwen2.5-1.5B-QwQ-distill-step300.pickle',
+    'Qwen2.5-1.5B-QwQ-distill-step400.pickle',
+    'Qwen2.5-1.5B-QwQ-distill-step500.pickle',
+    'Qwen2.5-1.5B-Qwen3-distill-step100.pickle',
+    'Qwen2.5-1.5B-Qwen3-distill-step200.pickle',
+    'Qwen2.5-1.5B-Qwen3-distill-step300.pickle',
+    'Qwen2.5-1.5B-Qwen3-distill-step400.pickle',
+    'Qwen2.5-1.5B-Qwen3-distill-step500.pickle'
+
 ]
 
 class TeacherGuide(OpenLMEngine):

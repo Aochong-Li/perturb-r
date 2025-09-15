@@ -20,7 +20,8 @@ python stress-test/teacher_guide_ct.py \
     --gpu_memory_utilization 0.85 \
     --dtype bfloat16 \
     --min_solve_n 0 \
-    --max_solve_n 2 \
+    --max_solve_n 1 \
+    --sample_size 200 \
     --max_tokens 20480 \
     --temperature 0.6 \
     --top_p 0.95 \

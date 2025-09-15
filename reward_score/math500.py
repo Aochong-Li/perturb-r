@@ -321,7 +321,7 @@ if __name__ == "__main__":
     """
     conda activate zero
     python reward_score/math500.py --file_path ./results/math500amc23/benchmark
-    python reward_score/math500.py --input_dir ./results/math500amc23_v1/inject_distractor
+    python reward_score/math500.py --input_dir ./results/math500amc23/benchmark
     """
     parser = argparse.ArgumentParser()
     parser.add_argument("--file_path", type=str, required=False)
@@ -362,7 +362,7 @@ if __name__ == "__main__":
                 
                 if ("model_is_correct" in df.columns 
                     or "original_correct" in df.columns 
-                    or "distractor_correct" in df.columns) and not args.overwrite and "limo-" not in fname:
+                    or "distractor_correct" in df.columns) and not args.overwrite:
                     print("Skipping {} because it already has model_is_correct column".format(fname))
                     continue
                 

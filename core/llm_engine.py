@@ -7,6 +7,7 @@ from dataclasses import dataclass
 import pandas as pd
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from vllm import LLM, SamplingParams
+from vllm.lora.request import LoRARequest
 
 # === ADDED ===
 import math
@@ -21,6 +22,8 @@ os.environ["VLLM_WORKER_MULTIPROC_METHOD"] = "spawn"
 class ModelConfig:
     model_name: str
     tokenizer_name: Optional[str] = None
+    lora_path: Optional[str] = None
+    lora_name: str = "adapter"  
     max_tokens: int = 512
     max_model_len: int = 32768
     temperature: float = 0.6
@@ -44,6 +47,12 @@ class ModelConfig:
     data_parallel_replicas: int = 1           
     ray_address: Optional[str] = None
 
+def _maybe_build_lora_modules(cfg: Dict):
+    lp = cfg.get("lora_path")
+    if not lp:
+        return None
+    return [{"lora_name": cfg.get("lora_name", "adapter"), "lora_path": lp}]
+
 @ray.remote(num_gpus=1, num_cpus=2)
 class _VLLMWorker:
     def __init__(self, cfg: Dict, sampling_params: Dict):
@@ -51,6 +60,8 @@ class _VLLMWorker:
         cfg.setdefault("tensor_parallel_size", cfg.get("tensor_parallel_size", 1))
         cfg.setdefault("pipeline_parallel_size", 1)
         # os.environ.setdefault("HF_HUB_OFFLINE", 1)
+
+        lora_modules = _maybe_build_lora_modules(cfg)
 
         self.model = LLM(
             model=cfg["model_name"],
@@ -94,6 +105,12 @@ class OpenLMEngine:
         self._load_model_and_tokenizer()
         if self._dp_enabled:
             self._init_data_parallel()
+        
+        self._lora_req = None
+        if self.config.lora_path:
+            self._lora_req = LoRARequest(
+                self.config.lora_name, 1, self.config.lora_path
+                )
 
     def _load_model_and_tokenizer(self) -> None:
         """Instantiate vLLM LLM and tokenizer with config."""
@@ -103,6 +120,7 @@ class OpenLMEngine:
         
         if not self._dp_enabled:
             logging.info(f"Loading model: {self.model_name}")
+
             self.model = LLM(
                 model=self.model_name,
                 tokenizer=self.tokenizer_name,
@@ -116,8 +134,10 @@ class OpenLMEngine:
                 trust_remote_code=self.config.trust_remote_code,
                 enable_chunked_prefill=self.config.enable_chunked_prefill,
                 enable_prefix_caching=self.config.enable_prefix_caching,
-                enforce_eager=self.config.enforce_eager
+                enforce_eager=self.config.enforce_eager,
+                enable_lora=self.config.lora_path is not None
             )
+
         else:
             _ = AutoModelForCausalLM.from_pretrained(self.model_name, trust_remote_code=self.config.trust_remote_code) # download model weights from HF
 
@@ -159,7 +179,7 @@ class OpenLMEngine:
             "trust_remote_code": self.config.trust_remote_code,
             "enable_chunked_prefill": self.config.enable_chunked_prefill,
             "enable_prefix_caching": self.config.enable_prefix_caching,
-            "enforce_eager": self.config.enforce_eager,
+            "enforce_eager": self.config.enforce_eager
         }
         sp = dict(self.sampling_params)
 
@@ -185,7 +205,7 @@ class OpenLMEngine:
 
             start = time.monotonic()
             try:
-                outputs = self.model.generate(prompts=prompts, sampling_params=sampling_params)
+                outputs = self.model.generate(prompts=prompts, sampling_params=sampling_params, lora_request=self._lora_req)
             except Exception as e:
                 logging.error(f"Generation error: {e}")
                 raise e
@@ -303,7 +323,8 @@ class OpenLMEngine:
 
 if __name__ == '__main__':
     config = ModelConfig(
-        model_name="/mnt/home/al2644/research/projects/rlvr/sft/LLaMA-Factory/outputs/inception/Qwen2.5-3B-deepscaler-gptoss-high-16k-5epochs-4e-5lr/checkpoint-585",
+        model_name="Qwen/Qwen2.5-7B",
+        lora_path="/mnt/home/al2644/research/projects/rlvr/sft/LLaMA-Factory/outputs/math8k/Qwen2.5-7B-math8k-distill-QwQ-32B-16k-10epochs-5e-5lr/checkpoint-100",
         tensor_parallel_size=2,
         gpu_memory_utilization=0.85,
         dtype="bfloat16",

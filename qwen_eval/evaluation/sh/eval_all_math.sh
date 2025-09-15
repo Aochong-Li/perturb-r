@@ -44,6 +44,7 @@ else
         --temperature 0.6 \
         --n_sampling 1 \
         --top_p 1 \
+        --num_shots 4 \
         --start 0 \
         --end -1 \
         --use_vllm \
@@ -53,7 +54,7 @@ else
 fi
 
 
-DATA_NAMES="olympiadbench,math500,gsm8k"
+DATA_NAMES="math500,gsm8k"
 IFS=',' read -ra DATASETS <<< "$DATA_NAMES"
 ALL_EXIST=true
 
@@ -81,8 +82,9 @@ else
         --prompt_type ${PROMPT_TYPE} \
         --num_test_sample ${NUM_TEST_SAMPLE} \
         --seed 0 \
-        --temperature 0.6 \
-        --n_sampling 3 \
+        --temperature 0 \
+        --n_sampling 1 \
+        --num_shots 4 \
         --top_p 1 \
         --start 0 \
         --end -1 \

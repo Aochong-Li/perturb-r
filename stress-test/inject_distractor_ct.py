@@ -16,7 +16,7 @@ from utils.chunk_r import equal_chunk
 from utils.corrupt_num import *
 from more_itertools import chunked
 
-BUFFER_TOKENS = 8192
+BUFFER_TOKENS = 4096
 
 class InjectDistractor(OpenLMEngine):
     def __init__(
@@ -71,14 +71,22 @@ class InjectDistractor(OpenLMEngine):
         if os.path.exists(out_pickle) and not self.overwrite:
             print(f"Stress test (Inject Distractor) already exists: {self.nick_name}")
             exit()
-        
-        cfg = AutoConfig.from_pretrained(self.model_name, trust_remote_code=True)
-        self.max_position_embeddings = cfg.max_position_embeddings
 
         if self.client_name == '':    
             # Initialize model config
+            if "Qwen2.5-7B-math8k" in self.model_name:
+                model_name = "Qwen/Qwen2.5-7B"
+                lora_path = self.model_name
+            else:
+                model_name = self.model_name
+                lora_path = None
+            
+            cfg = AutoConfig.from_pretrained(model_name, trust_remote_code=True)
+            self.max_position_embeddings = cfg.max_position_embeddings
+
             config = ModelConfig(
-                model_name=self.model_name,
+                model_name=model_name,
+                lora_path=lora_path,
                 tokenizer_name=self.tokenizer_name,
                 tensor_parallel_size=self.tensor_parallel_size,
                 gpu_memory_utilization=self.gpu_memory_utilization,
@@ -92,7 +100,7 @@ class InjectDistractor(OpenLMEngine):
             )
             # Initialize parent class
             super().__init__(config=config)
-            self.tokenizer = AutoTokenizer.from_pretrained(self.tokenizer_name)
+            # self.tokenizer = AutoTokenizer.from_pretrained(self.tokenizer_name)
             
         self.load_dataset()
     
@@ -115,22 +123,27 @@ class InjectDistractor(OpenLMEngine):
         self.rate = self.df.groupby('problem').agg({'model_is_correct': 'sum', 'response_tokens': 'min'}) \
             .reset_index().rename(columns = {"model_is_correct": "solve_n", "response_tokens": "min_tokens"})
         prob_df = self.rate[(self.rate['solve_n'] > 0) & (self.rate['min_tokens'] < self.max_position_embeddings - BUFFER_TOKENS)]
-        self.df = self.df[self.df.problem.isin(prob_df.problem)]
+        self.df = self.df[self.df.problem.isin(prob_df.problem) & self.df.if_boxed]
         
-        inv_counts = (
-            prob_df.groupby('solve_n')['problem']
-            .transform('count')
-            .rdiv(1.0)
-        )
-        prob_df['w'] = inv_counts / inv_counts.sum()
-        replace = False if self.sample_size < len(prob_df) else True
-        chosen = prob_df.sample(n=self.sample_size, weights='w', replace=replace, random_state=42)['problem'].tolist()
-        self.df = self.df[
-            self.df.problem.isin(chosen) &
-            (self.df.model_is_correct == 1) &
-            (self.df.response_tokens < self.max_position_embeddings - BUFFER_TOKENS)
-        ].reset_index(drop = True)
-        self.df = self.df.drop_duplicates(subset = 'problem').reset_index(drop = True)
+        ## Inverse sampling
+        # inv_counts = (
+        #     prob_df.groupby('solve_n')['problem']
+        #     .transform('count')
+        #     .rdiv(1.0)
+        # )
+        # prob_df['w'] = inv_counts / inv_counts.sum()
+        # replace = False if self.sample_size < len(prob_df) else True
+        # chosen = prob_df.sample(n=self.sample_size, weights='w', replace=replace, random_state=42)['problem'].tolist()
+        
+        # self.df = self.df[
+        #     self.df.problem.isin(chosen) &
+        #     (self.df.model_is_correct == 1) &
+        #     (self.df.response_tokens < self.max_position_embeddings - BUFFER_TOKENS)
+        # ].reset_index(drop = True)
+
+        self.df = self.df.sort_values(by = "response_tokens", ascending = False)
+        self.df = self.df[(self.df.model_is_correct == 1) & (self.df.response_tokens < self.max_position_embeddings - BUFFER_TOKENS)]
+        self.df = self.df.drop_duplicates(subset=['problem']).head(self.sample_size).reset_index(drop = True)
 
         self.df = self.df[['problem', 'solution', 'source', 'response']].rename(columns = {'response': 'original_response'})
         self.df = self.df.merge(prob_df[['problem', 'solve_n']], on = 'problem').reset_index(drop = True)
@@ -315,7 +328,7 @@ if __name__=="__main__":
     parser.add_argument("--client_name", type=str, default="",
                         help="Name of the client (for OpenAI or other APIs)")
     args = parser.parse_args()
-
+    
     engine = InjectDistractor(
         **vars(args),
     )

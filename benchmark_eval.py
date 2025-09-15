@@ -79,8 +79,17 @@ class BenchmarkEval(OpenLMEngine):
         if self.client_name == '':
             # Run locally
             # Initialize model config
+            if "Qwen2.5-7B-math8k" in self.model_name:
+                model_name = "Qwen/Qwen2.5-7B"
+                lora_path = self.model_name
+            else:
+                model_name = self.model_name
+                lora_path = None
+
+
             config = ModelConfig(
                 model_name=model_name,
+                lora_path=lora_path,
                 tokenizer_name=tokenizer_name,
                 tensor_parallel_size=self.tensor_parallel_size,
                 gpu_memory_utilization=self.gpu_memory_utilization,
