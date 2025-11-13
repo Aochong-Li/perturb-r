@@ -1,13 +1,11 @@
 import os
 import pandas as pd
-from transformers import AutoModelForCausalLM
 from core.llm_engine import *
 from core.openai_engine import *
 
 import argparse
 from datasets import load_dataset, load_from_disk
-from reward_score.math500 import math_if_boxed
-from reward_score.countdown import compute_score as countdown_compute_score, extract_solution as countdown_extract_solution
+from reward_score.math_eval import math_if_boxed
 
 import numpy as np
 from pathlib import Path
@@ -77,8 +75,6 @@ class BenchmarkEval(OpenLMEngine):
         )
 
         if self.client_name == '':
-            # Run locally
-            # Initialize model config
             if "Qwen2.5-7B-math8k" in self.model_name:
                 model_name = "Qwen/Qwen2.5-7B"
                 lora_path = self.model_name
@@ -101,7 +97,6 @@ class BenchmarkEval(OpenLMEngine):
                 n = self.sample_k,
                 max_num_batched_tokens=self.max_num_batched_tokens
             )
-            # Download model weights if not already downloaded
             super().__init__(config=config)
             # self.tokenizer = AutoTokenizer.from_pretrained(model_name)
             
@@ -155,7 +150,7 @@ class BenchmarkEval(OpenLMEngine):
         self.result_df['pred'] = self.result_df['response'].apply(lambda x: x.split('</think>')[-1].strip() if '</think>' in x else x)
         self.result_df['ground_truth'] = self.result_df['solution']
         
-        self.result_df['if_boxed'] = self.result_df['response'].apply(math_if_boxed)
+        # self.result_df['if_boxed'] = self.result_df['response'].apply(math_if_boxed)
         self.result_df.to_pickle(self.output_filepath)
         
     def api_eval(self) -> None:

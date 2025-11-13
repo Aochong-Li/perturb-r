@@ -320,8 +320,8 @@ def strip_string(string):
 if __name__ == "__main__":
     """
     conda activate zero
-    python reward_score/math500.py --file_path ./results/math500amc23/benchmark
-    python reward_score/math500.py --input_dir ./results/math500amc23/benchmark
+    python reward_score/math_eval.py --file_path ./results/math500amc23/benchmark
+    python reward_score/math_eval.py --input_dir ./results/math500amc23/inject_distractor
     """
     parser = argparse.ArgumentParser()
     parser.add_argument("--file_path", type=str, required=False)
