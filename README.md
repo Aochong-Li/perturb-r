@@ -1,16 +1,17 @@
 ## Installation
 
+### conda environment
 ```bash
-uv venv rlvr_eval --python 3.12 rlvr_eval
-source rlvr_eval/bin/activate
-
-uv pip install -r requirements.txt
-uv pip install latex2sympy2==1.9.1 --no-deps
-
+conda env create -f environment.yml
+pip install --no-deps requirements.txt
 ```
 
-## Run all models
 
+### uv environment
 ```bash
-bash scripts/run_all_models.sh
+uv venv rlvr_eval_empire --python 3.10.16
+source rlvr_eval_empire/bin/activate
+
+uv pip install --no-deps -r requirements.txt
+uv pip install --no-deps latex2sympy2==1.9.1
 ```
