@@ -1,0 +1,92 @@
+{
+  "citation": "",
+  "description": "",
+  "features": {
+    "question_id": {
+      "dtype": "int64",
+      "_type": "Value"
+    },
+    "question": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "num_options": {
+      "dtype": "int64",
+      "_type": "Value"
+    },
+    "correct_answer": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "correct_answer_index": {
+      "dtype": "int64",
+      "_type": "Value"
+    },
+    "category": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "src": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "choice_A": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "choice_B": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "choice_C": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "choice_D": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "choice_E": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "choice_F": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "choice_G": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "choice_H": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "choice_I": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "choice_J": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "system_prompt": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "user_prompt": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "problem": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "solution": {
+      "dtype": "string",
+      "_type": "Value"
+    }
+  },
+  "homepage": "",
+  "license": ""
+}
