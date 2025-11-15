@@ -30,7 +30,7 @@ def load_humaneval(raw_datasets_dir: Path) -> pd.DataFrame:
         test = data['test']
 
         # Assemble the instruction template
-        instruction = f'''You will complete a function whose docstring describes the required behavior. Return only the full function implementation, preserving the original function name {entry_point} as entry point, wrapped enclosed in ```python ```. Provide no explanations or extra text—only the code.'''
+        instruction = f'''You will complete a function whose docstring describes the required behavior. Return only the full function implementation, preserving the original function name {entry_point} as entry point, wrapped enclosed in ```python ```. Think step by step and implement and return the function.'''
         problem = instruction + f'\n\n```python\n{prompt}\n```'
 
         records.append({
@@ -71,7 +71,7 @@ def load_humaneval_plus() -> pd.DataFrame:
         test = sample['test']  # Enhanced test with 80x more inputs
 
         # Use same instruction template as original HumanEval
-        instruction = f'''You will complete a function whose docstring describes the required behavior. Return only the full function implementation, preserving the original function name {entry_point} as entry point, wrapped enclosed in ```python ```. Provide no explanations or extra text—only the code.'''
+        instruction = f'''You will complete a function whose docstring describes the required behavior. Return only the full function implementation, preserving the original function name {entry_point} as entry point, wrapped enclosed in ```python ```. Think step by step and implement and return the function.'''
         problem = instruction + f'\n\n```python\n{prompt}\n```'
 
         records.append({
@@ -103,7 +103,7 @@ def load_mbpp_plus() -> pd.DataFrame:
         entry_point = parse_entry_point_from_test(test_list)
 
         # Use same prompt template as original MBPP
-        prompt = f'''You will write a function according to the task for the required behavior. Return only the full function implementation, with the same function name as in the tests as entry point, wrapped enclosed in ```python ```. Provide no explanations or extra text. Just a single code snippet.
+        prompt = f'''You will write a function according to the task for the required behavior. Return the full function implementation, with the same function name as in the tests as entry point, wrapped enclosed in ```python ```. Think step by step and implement and return the function.
 
 Task: {problem_text}
 Tests:
@@ -122,29 +122,43 @@ Tests:
 
 def make_direct_output_prompt(s):
     code, input = s
-    return f"""You are given a Python function and an assertion containing an input to the function. Complete the assertion with a literal (no unsimplified expressions, no function calls) containing the output when executing the provided code on the given input, even if the function is incorrect or incomplete. Do NOT output any extra information. Provide the full assertion with the correct output in [ANSWER] and [/ANSWER] tags, following the examples.
+    return f"""You are given a Python function and an assertion containing an input to the function. Complete the assertion with a literal (no unsimplified expressions, no function calls) containing the output when executing the provided code on the given input, even if the function is incorrect or incomplete. DO NOT output any extra information. Think step by step and predict the full assertion with the correct output wrapped in ```python ```, following the examples.
 
 [PYTHON]
+```python
 def f(n):
     return n
 assert f(17) == ??
+```
 [/PYTHON]
 [ANSWER]
+```python
+def f(n):
+    return n
 assert f(17) == 17
+```
 [/ANSWER]
 
 [PYTHON]
+```python
 def f(s):
     return s + "a"
 assert f("x9j") == ??
+```
 [/PYTHON]
 [ANSWER]
+```python
+def f(s):
+    return s + "a"
 assert f("x9j") == "x9ja"
+```
 [/ANSWER]
 
 [PYTHON]
+```python
 {code}
 assert f({input}) == ??
+```
 [/PYTHON]
 """
 
@@ -202,27 +216,26 @@ def load_mbpp(raw_datasets_dir: Path) -> pd.DataFrame:
             entry_point = parse_entry_point_from_test(test_list)
 
             # Assemble the prompt template
-            prompt = f'''You will write a function according to the task for the required behavior. Return only the full function implementation, with the same function name as in the tests as entry point, wrapped enclosed in ```python ```. Provide no explanations or extra text. Just a single code snippet.
+            prompt = f'''You will write a function according to the task for the required behavior. Return the full function implementation, with the same function name as in the tests as entry point, wrapped enclosed in ```python ```. Think step by step and implement and return the function.
 
 Task: {problem_text}
 Tests:
 {tests}'''
 
-            # Wrap test assertions in a check function (similar to MBPP+)
-            # Replace function name with 'candidate' in assertions
-            wrapped_assertions = '\n'.join(
-                '    ' + assertion.replace(f'{entry_point}(', 'candidate(')
-                for assertion in test_list
-            )
-            test_function = f"""def check(candidate):
-{wrapped_assertions}
-"""
-
+            # (DEPRECATED) Wrap test assertions in a check function (similar to MBPP+)
+#             wrapped_assertions = '\n'.join(
+#                 '    ' + assertion.replace(f'{entry_point}(', 'candidate(')
+#                 for assertion in test_list
+#             )
+#             test_function = f"""def check(candidate):
+# {wrapped_assertions}
+# """
+            assertions = '\n'.join(test_list)
             records.append({
                 'problem': prompt,
                 'entry_point': entry_point,
                 'canonical_answer': code,
-                'solution': test_function,
+                'solution': assertions,
                 'source': 'mbpp'
             })
 
@@ -233,6 +246,7 @@ def main():
     """
     Example usage:
     python data/prepare_dataset/allcode.py --raw_datasets_dir ./raw_datasets --output_dir ./data/allcode
+    python data/prepare_dataset/allcode.py --raw_datasets_dir ./raw_datasets --output_dir ./data/cruxeval
     """
     parser = argparse.ArgumentParser(
         description="Process HumanEval, MBPP, CRUXEval, and EvalPlus datasets into unified format"

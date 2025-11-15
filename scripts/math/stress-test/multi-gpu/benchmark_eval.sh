@@ -7,8 +7,8 @@ MODEL=$2
 NICK=$3
 
 # -------- static bits you rarely touch --------
-DATASET_NAMES=("mmlu_pro") # "gpqa_diamond" "mmlu_redux"
-SAMPLE_K=6
+DATASET_NAMES=("allcode") # "gpqa_diamond" "mmlu_redux"
+SAMPLE_K=8
 # ----------------------------------------------
 
 export CUDA_VISIBLE_DEVICES=$GPU_ID
@@ -30,7 +30,7 @@ for DATASET_NAME in "${DATASET_NAMES[@]}"; do
     --gpu_memory_utilization 0.9 \
     --dtype                 bfloat16 \
     --max_tokens            32768 \
-    --max_num_batched_tokens 8192 \
+    --max_num_batched_tokens 32768 \
     --temperature           0.6 \
     --top_p                 0.95 \
     --top_k                -1 \

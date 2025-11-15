@@ -94,6 +94,7 @@ if __name__ == "__main__":
     conda activate zero
     python reward_score/science_eval.py --input_dir ./results/gpqa_diamond/benchmark --overwrite
     python reward_score/science_eval.py --input_dir ./results/mmlu_redux/benchmark --overwrite
+    python reward_score/science_eval.py --input_dir ./results/mmlu/benchmark --overwrite
 
     python reward_score/science_eval.py --input_dir ./results/gpqa_diamond/inject_distractor
     python reward_score/science_eval.py --input_dir ./results/mmlu_redux/inject_distractor
@@ -176,4 +177,4 @@ if __name__ == "__main__":
                 accuracy = df[is_correct_col].mean()
                 total = len(df)
                 correct = df[is_correct_col].sum()
-                print(f"{fname} - Accuracy: {accuracy:.2%} ({int(correct)}/{total})")
+                print(f"{fname} - Accuracy: {accuracy:.2%} ({int(correct)}/{total})", f" - NaN: {df[is_correct_col].isna().sum() / total:.2%}")

@@ -11,12 +11,13 @@ from transformers import AutoModelForCausalLM, AutoConfig, AutoTokenizer
 from core.llm_engine import *
 from core.openai_engine import *
 
-from reward_score.math500 import math_if_boxed
+from reward_score.math_eval import math_if_boxed
 from utils.chunk_r import equal_chunk
 from utils.corrupt_num import *
 from more_itertools import chunked
 
 BUFFER_TOKENS = 8192
+MIN_THINKING_TOKENS = 4096
 
 class InjectDistractor(OpenLMEngine):
     def __init__(
@@ -91,7 +92,9 @@ class InjectDistractor(OpenLMEngine):
                 max_model_len=self.max_position_embeddings
             )
             # Initialize parent class
+            # HACK
             super().__init__(config=config)
+            # self.tokenizer = AutoTokenizer.from_pretrained(self.tokenizer_name)
             
         self.load_dataset()
     
@@ -106,11 +109,13 @@ class InjectDistractor(OpenLMEngine):
             axis = 1
         )
         self.original_df = self.df.copy()
-    
+
+        self.df = self.df[self.df['response_tokens'] >= MIN_THINKING_TOKENS]
         self.rate = self.df.groupby('problem').agg({'model_is_correct': 'sum', 'response_tokens': 'min'}) \
             .reset_index().rename(columns = {"model_is_correct": "solve_n", "response_tokens": "min_tokens"})
         prob_df = self.rate[(self.rate['solve_n'] > 0) & (self.rate['min_tokens'] < self.max_position_embeddings - BUFFER_TOKENS)]
         self.df = self.df[self.df.problem.isin(prob_df.problem)]
+
         # HACK: restirct problems in distraction_problems.pickle
         # distraction_problems = pd.read_pickle(os.path.join(self.results_dir, "distraction_problems.pickle"))
         # self.df = self.df[self.df['problem'].isin(distraction_problems)]
@@ -124,6 +129,7 @@ class InjectDistractor(OpenLMEngine):
         )
         prob_df['w'] = inv_counts / inv_counts.sum()
         chosen = prob_df.sample(n=self.sample_size, weights='w', random_state=42)['problem'].tolist()
+
         self.df = self.df[
             self.df.problem.isin(chosen) &
             (self.df.model_is_correct == 1) &
@@ -269,7 +275,7 @@ class InjectDistractor(OpenLMEngine):
         self.result_df = self.df.copy()
         self.result_df['pred'] = self.result_df['post_distraction_response'].apply(lambda x: x.split('</think>')[-1].strip() if '</think>' in x else x)
         self.result_df['ground_truth'] = self.result_df['solution']
-        self.result_df['if_boxed'] = self.result_df['pred'].apply(math_if_boxed)
+        # self.result_df['if_boxed'] = self.result_df['pred'].apply(math_if_boxed)
         
         self.result_df.to_pickle(output_path)
 

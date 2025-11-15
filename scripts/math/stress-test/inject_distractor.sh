@@ -2,9 +2,9 @@ set -ex
 
 # TODO: before running this script, run the following command to filter the questions
 # bash scripts/filter_questions.sh
-export CUDA_VISIBLE_DEVICES=0,1
+export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
 MODELS_YAML="config/market_models.yaml"
-DATASET_NAME="allmath"
+DATASET_NAME="allscience"
 
 RESULTS_DIR="./results/${DATASET_NAME}"
 
@@ -24,15 +24,15 @@ echo "$MODELS_INFO" | while IFS=, read -r model_name nick_name; do
         --tokenizer_name "${model_name}" \
         --results_dir "${RESULTS_DIR}" \
         --sample_size 250 \
-        --tensor_parallel_size 2 \
-        --gpu_memory_utilization 0.8 \
+        --num_distract_candidates 50 \
+        --tensor_parallel_size 1 \
+        --gpu_memory_utilization 0.9 \
         --dtype bfloat16 \
         --max_tokens 32768 \
         --temperature 0.6 \
         --top_p 0.95 \
         --top_k -1 \
         --granularity 30 \
-        --max_num_batched_tokens 8192 \
-        --num_distract_candidates 20 \
+        --max_num_batched_tokens 32768 \
         --unit 0.2
 done

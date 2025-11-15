@@ -56,6 +56,12 @@ def main():
         --benchmark-script scripts/math/stress-test/multi-gpu/benchmark_eval.sh \
         --poll-interval 5 \
         --gpu-num 2
+    
+    python scripts/scheduler.py \
+        --models-yaml config/market_models.yaml \
+        --benchmark-script scripts/math/stress-test/multi-gpu/inject_distractor.sh \
+        --poll-interval 5 \
+        --gpu-num 2
  
     ps aux | grep benchmark_eval.sh | grep -v grep
     """
