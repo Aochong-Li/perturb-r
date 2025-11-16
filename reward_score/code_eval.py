@@ -23,6 +23,8 @@ import platform
 import signal
 import tempfile
 from typing import Optional
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from tqdm import tqdm
 
 
 def extract_code(text: str) -> Optional[str]:
@@ -49,7 +51,6 @@ def extract_code(text: str) -> Optional[str]:
     return text.strip()
 
 
-# Safe execution utilities (adapted from humaneval)
 class TimeoutException(Exception):
     pass
 
@@ -165,7 +166,11 @@ def reliability_guard(maximum_memory_bytes: Optional[int] = None):
     import subprocess
     subprocess.Popen = None
 
-    __builtins__["help"] = None
+    # __builtins__ can be either a dict or a module depending on context
+    if isinstance(__builtins__, dict):
+        __builtins__["help"] = None
+    else:
+        __builtins__.help = None
 
     import sys
     sys.modules["ipdb"] = None
@@ -270,7 +275,7 @@ def evaluate_mbpp(pred: str, solution: str) -> Optional[float]:
         return 0.0
 
 
-def evaluate_cruxeval(pred: str, solution: str, canonical_answer: str) -> Optional[float]:
+def evaluate_cruxeval(problem: str, pred: str, solution: str) -> Optional[float]:
     """Evaluate CruxEval predictions using dual approach.
 
     Try both execution and string matching - pass if either succeeds.
@@ -279,7 +284,13 @@ def evaluate_cruxeval(pred: str, solution: str, canonical_answer: str) -> Option
     code = extract_code(pred)
     if code:
         try:
-            passed = check_code_correctness(code)
+            text = problem.split('```python')[-1].replace('```\n[/PYTHON]','')
+            func = re.sub(r"^assert.*\?$", "", text, flags=re.MULTILINE)
+            assert_stmt = re.findall(r"^assert.*", code, flags=re.MULTILINE)
+            assert_stmt = assert_stmt[-1]
+            test_program = f"{func}\n\n{assert_stmt}"
+
+            passed = check_code_correctness(test_program)
             if passed:
                 return 1.0
         except Exception:
@@ -304,9 +315,46 @@ def evaluate_cruxeval(pred: str, solution: str, canonical_answer: str) -> Option
 
     return 0.0
 
+def evaluate_row(args):
+    """Worker function for parallel evaluation.
 
-def code_verify_score(pred: str, solution: str, source: str, entry_point: str = None,
-                      canonical_answer: str = None) -> Optional[float]:
+    Args:
+        args: Tuple of (index, row_dict) where row_dict contains all needed fields
+
+    Returns:
+        Tuple of (index, result)
+    """
+    idx, row = args
+    if "distractor_problem" not in row.keys():
+        # Benchmark Evaluation
+        result = code_verify_score(
+            row.get('problem'),
+            row.get('pred'),
+            row.get('solution'),
+            row.get('source'),
+            row.get('entry_point')
+        )
+        return idx, result
+    else:
+        # Recoverability Evaluation
+        if 'humaneval' in row.get('source'):
+            problem = row.get('problem')
+            m = re.search(r"function name\s+([A-Za-z_]\w*)\s+as entry point", problem)
+            entry_point = m.group(1) if m else None
+        else:
+            entry_point = None
+
+        result = code_verify_score(
+            row.get('problem'),
+            row.get('pred'),
+            row.get('solution'),
+            row.get('source'),
+            row.get('entry_point', entry_point)
+        )
+        return idx, result
+
+
+def code_verify_score(problem: str, pred: str, solution: str, source: str, entry_point: str = None) -> Optional[float]:
     """Verify code correctness based on source type.
 
     Args:
@@ -314,8 +362,6 @@ def code_verify_score(pred: str, solution: str, source: str, entry_point: str = 
         solution: Ground truth test cases
         source: Source dataset (humaneval, mbpp, cruxeval, etc.)
         entry_point: Function entry point (for humaneval)
-        canonical_answer: Reference implementation (for cruxeval)
-
     Returns:
         1.0 if correct, 0.0 if incorrect, None if unable to evaluate
     """
@@ -328,7 +374,7 @@ def code_verify_score(pred: str, solution: str, source: str, entry_point: str = 
         elif source in ['mbpp', 'mbppplus']:
             return evaluate_mbpp(pred, solution)
         elif source == 'cruxeval':
-            return evaluate_cruxeval(pred, solution, canonical_answer)
+            return evaluate_cruxeval(problem, pred, solution)
         else:
             return None
     except Exception as e:
@@ -340,28 +386,36 @@ if __name__ == "__main__":
     """
     Usage:
     conda activate rlvr_eval_empire
-    python reward_score/code_eval.py --input_dir ./results/allcode/benchmark --overwrite
-    python reward_score/code_eval.py --input_dir ./results/oldallcode/benchmark
+    python reward_score/code_eval.py --input_dir ./results/allcode/benchmark --n_workers 64
+    python reward_score/code_eval.py --input_dir ./results/allcode/inject_distractor --n_workers 64
+    python reward_score/code_eval.py --file_path ./results/allcode/benchmark/R1-Distill-Qwen-1.5B.pickle --n_workers 64
     """
     parser = argparse.ArgumentParser()
     parser.add_argument("--file_path", type=str, required=False)
     parser.add_argument("--input_dir", type=str, required=False)
     parser.add_argument("--overwrite", action="store_true")
+    parser.add_argument("--n_workers", type=int, default=32, help="Number of parallel workers")
     args = parser.parse_args()
 
     if args.file_path:
         df = pd.read_pickle(args.file_path)
 
-        df["model_is_correct"] = df.apply(
-            lambda x: code_verify_score(
-                x["pred"],
-                x["solution"],
-                x["source"],
-                x.get("entry_point"),
-                x.get("canonical_answer")
-            ),
-            axis=1
-        )
+        # Parallel evaluation
+        print(f"Evaluating {len(df)} samples with {args.n_workers} workers...")
+        results = {}
+
+        # Convert dataframe to list of (index, row_dict) tuples for parallel processing
+        rows_to_evaluate = [(idx, row.to_dict()) for idx, row in df.iterrows()]
+
+        with ProcessPoolExecutor(max_workers=args.n_workers) as executor:
+            futures = [executor.submit(evaluate_row, row_data) for row_data in rows_to_evaluate]
+
+            for future in tqdm(as_completed(futures), total=len(futures), desc="Evaluating"):
+                idx, result = future.result()
+                results[idx] = result
+
+        # Assign results back to dataframe in original order
+        df["model_is_correct"] = [results[idx] for idx in df.index]
         df.to_pickle(args.file_path)
 
         # Print summary statistics
@@ -373,7 +427,7 @@ if __name__ == "__main__":
     else:
         for fname in os.listdir(args.input_dir):
             if fname.endswith(".pickle"):
-                print(f"Evaluating {fname}")
+                print(f"\nEvaluating {fname}")
                 file_path = os.path.join(args.input_dir, fname)
                 df = pd.read_pickle(file_path)
 
@@ -381,16 +435,22 @@ if __name__ == "__main__":
                     print(f"Skipping {fname} - already has model_is_correct column")
                     continue
 
-                df["model_is_correct"] = df.apply(
-                    lambda x: code_verify_score(
-                        x["pred"],
-                        x["solution"],
-                        x["source"],
-                        x.get("entry_point"),
-                        x.get("canonical_answer")
-                    ),
-                    axis=1
-                )
+                # Parallel evaluation
+                print(f"Processing {len(df)} samples with {args.n_workers} workers...")
+                results = {}
+
+                # Convert dataframe to list of (index, row_dict) tuples for parallel processing
+                rows_to_evaluate = [(idx, row.to_dict()) for idx, row in df.iterrows()]
+
+                with ProcessPoolExecutor(max_workers=args.n_workers) as executor:
+                    futures = [executor.submit(evaluate_row, row_data) for row_data in rows_to_evaluate]
+
+                    for future in tqdm(as_completed(futures), total=len(futures), desc=f"  {fname}"):
+                        idx, result = future.result()
+                        results[idx] = result
+
+                # Assign results back to dataframe in original order
+                df["model_is_correct"] = [results[idx] for idx in df.index]
                 df.to_pickle(file_path)
 
                 # Print summary statistics by source

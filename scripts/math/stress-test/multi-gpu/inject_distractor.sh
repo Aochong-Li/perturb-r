@@ -7,7 +7,7 @@ MODEL=$2
 NICK=$3
 
 export CUDA_VISIBLE_DEVICES=$GPU_ID
-DATASET_NAME="allscience"
+DATASET_NAME="allcode"
 RESULTS_DIR="./results/${DATASET_NAME}"
 
 

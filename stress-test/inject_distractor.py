@@ -196,7 +196,7 @@ class InjectDistractor(OpenLMEngine):
         distractor_reasoning = "".join(distractor_chunks[:n_dist])
 
         if original_ratio > 0.0:
-            original_reasoning = original_reasoning + "Let me think."
+            original_reasoning = original_reasoning + "\nLet me think."
             distractor_reasoning = distractor_reasoning.replace("<think>", "").rstrip("\n")
 
         return original_reasoning + distractor_reasoning
