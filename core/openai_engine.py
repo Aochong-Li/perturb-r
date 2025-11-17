@@ -20,7 +20,7 @@ class OpenAI_Engine():
         developer_message: str = "",
         template_map: dict[str, str] = {},
         nick_name: str = "gpt_engine",
-        batch_io_root: str = "/home/al2644/research/openai_batch_io/reasoning",
+        batch_io_root: str = "../openai_batch_io",
         cache_filepath: str = "",
         model: str = "deepseek-chat",
         client_name: str = "openai",

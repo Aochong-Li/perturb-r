@@ -5,13 +5,13 @@ from typing import Union, List, Optional, Dict
 from dataclasses import dataclass
 
 import pandas as pd
-from transformers import AutoTokenizer, AutoModelForCausalLM
+import ray
+from transformers import AutoTokenizer
 from vllm import LLM, SamplingParams
 from vllm.lora.request import LoRARequest
-
-# === ADDED ===
-import math
-import ray
+from prompt_toolkit import PromptSession
+from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit.formatted_text import HTML
 
 # Allow longer max_model_len in vLLM
 os.environ["VLLM_ALLOW_LONG_MAX_MODEL_LEN"] = "1"
@@ -23,7 +23,7 @@ class ModelConfig:
     model_name: str
     tokenizer_name: Optional[str] = None
     lora_path: Optional[str] = None
-    lora_name: str = "adapter"  
+    lora_name: str = "adapter"
     max_tokens: int = 512
     max_model_len: int = 32768
     temperature: float = 0.6
@@ -43,104 +43,80 @@ class ModelConfig:
     enable_chunked_prefill: bool = True
     enable_prefix_caching: bool = True
     enforce_eager: bool = True
-    # === ADDED: data-parallel controls ===
-    data_parallel_replicas: int = 1           
+    data_parallel_replicas: int = 1
     ray_address: Optional[str] = None
 
-def _maybe_build_lora_modules(cfg: Dict):
-    lp = cfg.get("lora_path")
-    if not lp:
-        return None
-    return [{"lora_name": cfg.get("lora_name", "adapter"), "lora_path": lp}]
 
 @ray.remote(num_gpus=1, num_cpus=2)
 class _VLLMWorker:
-    def __init__(self, cfg: Dict, sampling_params: Dict):
-        cfg = dict(cfg)
-        cfg.setdefault("tensor_parallel_size", cfg.get("tensor_parallel_size", 1))
-        cfg.setdefault("pipeline_parallel_size", 1)
-        # os.environ.setdefault("HF_HUB_OFFLINE", 1)
-
-        lora_modules = _maybe_build_lora_modules(cfg)
-
+    """Ray actor that wraps a vLLM model for data-parallel inference."""
+    def __init__(self, model_config: Dict, sampling_params: Dict, lora_config: Optional[Dict] = None):
         self.model = LLM(
-            model=cfg["model_name"],
-            tokenizer=cfg.get("tokenizer_name") or cfg["model_name"],
-            dtype=cfg["dtype"],
-            gpu_memory_utilization=cfg["gpu_memory_utilization"],
-            max_model_len=cfg["max_model_len"],
-            max_num_batched_tokens=cfg.get("max_num_batched_tokens"),
-            tensor_parallel_size=cfg["tensor_parallel_size"],
-            pipeline_parallel_size=cfg["pipeline_parallel_size"],
-            distributed_executor_backend=cfg["distributed_executor_backend"],
-            trust_remote_code=cfg["trust_remote_code"],
-            enable_chunked_prefill=cfg["enable_chunked_prefill"],
-            enable_prefix_caching=cfg["enable_prefix_caching"],
-            enforce_eager=cfg["enforce_eager"],
+            model=model_config["model_name"],
+            tokenizer=model_config.get("tokenizer_name") or model_config["model_name"],
+            dtype=model_config["dtype"],
+            gpu_memory_utilization=model_config["gpu_memory_utilization"],
+            max_model_len=model_config["max_model_len"],
+            max_num_batched_tokens=model_config.get("max_num_batched_tokens"),
+            tensor_parallel_size=model_config["tensor_parallel_size"],
+            pipeline_parallel_size=model_config["pipeline_parallel_size"],
+            distributed_executor_backend=model_config["distributed_executor_backend"],
+            trust_remote_code=model_config["trust_remote_code"],
+            enable_chunked_prefill=model_config["enable_chunked_prefill"],
+            enable_prefix_caching=model_config["enable_prefix_caching"],
+            enforce_eager=model_config["enforce_eager"],
+            enable_lora=lora_config is not None,
         )
         self._sampling_params_base = sampling_params
-        self.tokenizer_name = cfg.get("tokenizer_name") or cfg["model_name"]
-        self.trust_remote_code = cfg["trust_remote_code"]
+        self._lora_req = None
+        if lora_config:
+            self._lora_req = LoRARequest(
+                lora_config["lora_name"],
+                1,
+                lora_config["lora_path"]
+            )
 
-    def generate(self, prompts: List[str], new_sampling_params: Optional[List[Dict]] = None) -> List[str]:
+    def generate(self, prompts: List[str], sampling_overrides: Optional[List[Dict]] = None) -> List[str]:
+        """Generate completions for a batch of prompts."""
         if not prompts:
             return []
-        if new_sampling_params is not None:
-            sp = [SamplingParams(**{**self._sampling_params_base, **over}) for over in new_sampling_params]
+        
+        if sampling_overrides:
+            sampling_params = [
+                SamplingParams(**{**self._sampling_params_base, **override})
+                for override in sampling_overrides
+            ]
         else:
-            sp = SamplingParams(**self._sampling_params_base)
-        outs = self.model.generate(prompts=prompts, sampling_params=sp)
-        return [o.text for req in outs for o in req.outputs]
+            sampling_params = SamplingParams(**self._sampling_params_base)
+        
+        outputs = self.model.generate(
+            prompts=prompts,
+            sampling_params=sampling_params,
+            lora_request=self._lora_req
+        )
+        return [out.text for req in outputs for out in req.outputs]
 
 class OpenLMEngine:
-    """
-    Production-ready vLLM inference engine for batch prompt generation.
-    """
+    """Production-ready vLLM inference engine with optional data parallelism."""
+    
     def __init__(self, config: ModelConfig):
         self.config = config
         self.model_name = config.model_name
         self.tokenizer_name = config.tokenizer_name or config.model_name
-        self._dp_enabled = (self.config.data_parallel_replicas or 1) > 1
-        self._workers = None  # filled if DP enabled
-        self._load_model_and_tokenizer()
+        self._dp_enabled = config.data_parallel_replicas > 1
+        self._workers = None
+        self._lora_req = None
+        
+        self._init_sampling_params()
+        self._load_tokenizer()
+        
         if self._dp_enabled:
             self._init_data_parallel()
-        
-        self._lora_req = None
-        if self.config.lora_path:
-            self._lora_req = LoRARequest(
-                self.config.lora_name, 1, self.config.lora_path
-                )
-
-    def _load_model_and_tokenizer(self) -> None:
-        """Instantiate vLLM LLM and tokenizer with config."""
-        if hasattr(self, "model"):
-            logging.info("Model already loaded, skipping reload.")
-            return
-        
-        if not self._dp_enabled:
-            logging.info(f"Loading model: {self.model_name}")
-
-            self.model = LLM(
-                model=self.model_name,
-                tokenizer=self.tokenizer_name,
-                dtype=self.config.dtype,
-                gpu_memory_utilization=self.config.gpu_memory_utilization,
-                max_model_len=self.config.max_model_len,
-                max_num_batched_tokens=self.config.max_num_batched_tokens,
-                tensor_parallel_size=self.config.tensor_parallel_size,
-                pipeline_parallel_size=self.config.pipeline_parallel_size,
-                distributed_executor_backend=self.config.distributed_executor_backend,
-                trust_remote_code=self.config.trust_remote_code,
-                enable_chunked_prefill=self.config.enable_chunked_prefill,
-                enable_prefix_caching=self.config.enable_prefix_caching,
-                enforce_eager=self.config.enforce_eager,
-                enable_lora=self.config.lora_path is not None
-            )
-
         else:
-            _ = AutoModelForCausalLM.from_pretrained(self.model_name, trust_remote_code=self.config.trust_remote_code) # download model weights from HF
+            self._load_model()
 
+    def _init_sampling_params(self) -> None:
+        """Initialize base sampling parameters."""
         self.sampling_params = {
             "n": self.config.n,
             "max_tokens": self.config.max_tokens,
@@ -151,24 +127,54 @@ class OpenLMEngine:
             "logprobs": self.config.logprobs,
             "prompt_logprobs": self.config.prompt_logprobs,
         }
-        
-        self.tokenizer = AutoTokenizer.from_pretrained(self.tokenizer_name, trust_remote_code=self.config.trust_remote_code)
+
+    def _load_tokenizer(self) -> None:
+        """Load tokenizer."""
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            self.tokenizer_name,
+            trust_remote_code=self.config.trust_remote_code
+        )
         self.tokenizer.model_max_length = self.config.max_model_len
 
+    def _load_model(self) -> None:
+        """Load vLLM model for single-replica inference."""
+        logging.info(f"Loading model: {self.model_name}")
+        
+        self.model = LLM(
+            model=self.model_name,
+            tokenizer=self.tokenizer_name,
+            dtype=self.config.dtype,
+            gpu_memory_utilization=self.config.gpu_memory_utilization,
+            max_model_len=self.config.max_model_len,
+            max_num_batched_tokens=self.config.max_num_batched_tokens,
+            tensor_parallel_size=self.config.tensor_parallel_size,
+            pipeline_parallel_size=self.config.pipeline_parallel_size,
+            distributed_executor_backend=self.config.distributed_executor_backend,
+            trust_remote_code=self.config.trust_remote_code,
+            enable_chunked_prefill=self.config.enable_chunked_prefill,
+            enable_prefix_caching=self.config.enable_prefix_caching,
+            enforce_eager=self.config.enforce_eager,
+            enable_lora=self.config.lora_path is not None,
+        )
+        
+        if self.config.lora_path:
+            self._lora_req = LoRARequest(
+                self.config.lora_name,
+                1,
+                self.config.lora_path
+            )
+
     def _init_data_parallel(self) -> None:
-        if ray.is_initialized():
-            pass
-        else:
-            if self.config.ray_address:
-                ray.init(address=self.config.ray_address, ignore_reinit_error=True)
-            else:
-                ray.init(ignore_reinit_error=True)
-
-        replicas = max(1, int(self.config.data_parallel_replicas))
-
-        cfg_dict = {
+        """Initialize Ray and create worker pool for data parallelism."""
+        if not ray.is_initialized():
+            ray.init(
+                address=self.config.ray_address,
+                ignore_reinit_error=True
+            )
+        
+        model_config = {
             "model_name": self.config.model_name,
-            "tokenizer_name": self.config.tokenizer_name or self.config.model_name,
+            "tokenizer_name": self.tokenizer_name,
             "dtype": self.config.dtype,
             "gpu_memory_utilization": self.config.gpu_memory_utilization,
             "max_model_len": self.config.max_model_len,
@@ -179,159 +185,249 @@ class OpenLMEngine:
             "trust_remote_code": self.config.trust_remote_code,
             "enable_chunked_prefill": self.config.enable_chunked_prefill,
             "enable_prefix_caching": self.config.enable_prefix_caching,
-            "enforce_eager": self.config.enforce_eager
+            "enforce_eager": self.config.enforce_eager,
         }
-        sp = dict(self.sampling_params)
+        
+        lora_config = None
+        if self.config.lora_path:
+            lora_config = {
+                "lora_name": self.config.lora_name,
+                "lora_path": self.config.lora_path,
+            }
+        
+        self._workers = [
+            _VLLMWorker.remote(model_config, self.sampling_params, lora_config)
+            for _ in range(self.config.data_parallel_replicas)
+        ]
+        
+        logging.info(
+            f"Initialized data-parallel with {self.config.data_parallel_replicas} replica(s)."
+        )
 
-        self._workers = [_VLLMWorker.remote(cfg_dict, sp) for _ in range(replicas)]
-        logging.info(f"Initialized data-parallel with {len(self._workers)} replica(s).")
-
-    def generate(self, prompts: Union[str, List[str]], new_sampling_params: Optional[List[Dict]] = None) -> pd.DataFrame:
+    def generate(
+        self,
+        prompts: Union[str, List[str]],
+        sampling_overrides: Optional[List[Dict]] = None
+    ) -> pd.DataFrame:
         """
-        Generate responses for a single prompt or list of prompts.
+        Generate responses for prompts.
+        
+        Args:
+            prompts: Single prompt or list of prompts
+            sampling_overrides: Optional per-prompt sampling parameter overrides
+        
+        Returns:
+            DataFrame with 'response' column containing generated text
         """
         if isinstance(prompts, str):
             prompts = [prompts]
-
-        # Single-replica (default) path: unchanged
+        
+        if sampling_overrides and len(sampling_overrides) != len(prompts):
+            raise ValueError(
+                f"sampling_overrides length ({len(sampling_overrides)}) "
+                f"must match prompts length ({len(prompts)})"
+            )
+        
+        start = time.monotonic()
+        
         if not self._dp_enabled:
-            if new_sampling_params is not None:
-                sampling_params = [
-                    SamplingParams(**{**self.sampling_params, **over})
-                    for over in new_sampling_params
-                ]
-            else:
-                sampling_params = SamplingParams(**self.sampling_params)
+            responses = self._generate_single(prompts, sampling_overrides)
+        else:
+            responses = self._generate_distributed(prompts, sampling_overrides)
+        
+        duration = time.monotonic() - start
+        logging.info(f"Generated {len(prompts)} prompt(s) in {duration:.2f}s")
+        
+        return pd.DataFrame(responses, columns=['response'])
 
-            start = time.monotonic()
-            try:
-                outputs = self.model.generate(prompts=prompts, sampling_params=sampling_params, lora_request=self._lora_req)
-            except Exception as e:
-                logging.error(f"Generation error: {e}")
-                raise e
-            duration = time.monotonic() - start
-            logging.info(f"Generated {len(prompts)} prompt(s) in {duration:.2f}s")
-
-            responses = [out.text for req in outputs for out in req.outputs]
-            return pd.DataFrame(responses, columns=['response'])
-
-        # === ADDED: data-parallel path ===
-        if self._workers is None:
-            self._init_data_parallel()
-
-        k = len(self._workers)
-        shards: List[List[str]] = [[] for _ in range(k)]
-        params_shards: Optional[List[Optional[List[Dict]]]] = None
-        if new_sampling_params is not None:
-            if len(new_sampling_params) != len(prompts):
-                raise ValueError("len(new_sampling_params) must equal len(prompts) in DP mode.")
-            params_shards = [[] for _ in range(k)]
-
-        for i, p in enumerate(prompts):
-            r = i % k
-            shards[r].append(p)
-            if params_shards is not None:
-                params_shards[r].append(new_sampling_params[i])
-
-        if new_sampling_params is not None:
+    def _generate_single(
+        self,
+        prompts: List[str],
+        sampling_overrides: Optional[List[Dict]]
+    ) -> List[str]:
+        """Generate using single vLLM instance."""
+        if sampling_overrides:
             sampling_params = [
-                SamplingParams(**{**self.sampling_params, **over})
-                for over in new_sampling_params
+                SamplingParams(**{**self.sampling_params, **override})
+                for override in sampling_overrides
             ]
         else:
             sampling_params = SamplingParams(**self.sampling_params)
+        
+        outputs = self.model.generate(
+            prompts=prompts,
+            sampling_params=sampling_params,
+            lora_request=self._lora_req
+        )
+        return [out.text for req in outputs for out in req.outputs]
 
-        start = time.monotonic()
-        try:
-            pending = []
-            for idx, (worker, shard) in enumerate(zip(self._workers, shards)):
-                if shard:
-                    pshard = None if params_shards is None else params_shards[idx]
-                    pending.append(worker.generate.remote(shard, pshard))
-            results: List[List[str]] = ray.get(pending) if pending else []
-        except Exception as e:
-            logging.error(f"DP generation error: {e}")
-            raise e
-        duration = time.monotonic() - start
-        logging.info(f"[DP] Generated {len(prompts)} prompt(s) across {k} replica(s) in {duration:.2f}s")
+    def _generate_distributed(
+        self,
+        prompts: List[str],
+        sampling_overrides: Optional[List[Dict]]
+    ) -> List[str]:
+        """Generate using data-parallel workers."""
+        num_workers = len(self._workers)
+        
+        # Shard prompts and overrides using round-robin
+        prompt_shards = [[] for _ in range(num_workers)]
+        override_shards = [[] for _ in range(num_workers)] if sampling_overrides else None
+        
+        for i, prompt in enumerate(prompts):
+            worker_idx = i % num_workers
+            prompt_shards[worker_idx].append(prompt)
+            if override_shards is not None:
+                override_shards[worker_idx].append(sampling_overrides[i])
+        
+        # Submit work to workers
+        futures = [
+            worker.generate.remote(
+                prompt_shards[i],
+                override_shards[i] if override_shards else None
+            )
+            for i, worker in enumerate(self._workers)
+            if prompt_shards[i]  # Only submit if shard is non-empty
+        ]
+        
+        # Gather results
+        results = ray.get(futures) if futures else []
+        return [response for shard_results in results for response in shard_results]
 
-        flat = [r for group in results for r in group]
-        return pd.DataFrame(flat, columns=['response'])
+    def interactive_console(self) -> None:
+        """Interactive console with tab switching between chat and generate modes."""
+        mode = "chat"  # Start in chat mode
+        session = PromptSession()
+        
+        # Setup key bindings
+        kb = KeyBindings()
+        
+        @kb.add('c-m', eager=True)
+        def _(event):
+            event.current_buffer.validate_and_handle()
+        
+        @kb.add('tab')
+        def _(event):
+            # Toggle mode on tab
+            nonlocal mode
+            mode = "generate" if mode == "chat" else "chat"
+            # Clear current input and show mode change
+            event.current_buffer.text = ""
+            print(f"\n→ Switched to {mode.upper()} mode\n")
+        
+        print("╭─────────────────────────────────────────╮")
+        print("│   Interactive LLM Console               │")
+        print("├─────────────────────────────────────────┤")
+        print("│  Tab         : Switch chat/generate     │")
+        print("│  Ctrl+Enter  : Submit                   │")
+        print("│  Ctrl+C      : Exit                     │")
+        print("╰─────────────────────────────────────────╯\n")
+        
+        while True:
+            try:
+                # Show current mode
+                mode_color = "ansicyan" if mode == "chat" else "ansigreen"
+                prompt_text = HTML(f'<{mode_color}>[{mode.upper()}]</{mode_color}> You: ')
+                
+                user_input = session.prompt(
+                    prompt_text,
+                    multiline=True,
+                    key_bindings=kb
+                )
+                
+                if not user_input.strip():
+                    continue
+                
+                # Process based on mode
+                if mode == "chat":
+                    conversation = [{'role': 'user', 'content': user_input}]
+                    formatted_prompt = self.tokenizer.apply_chat_template(
+                        conversation,
+                        tokenize=False,
+                        add_generation_prompt=True
+                    )
+                    df = self.generate(formatted_prompt)
+                else:
+                    df = self.generate(user_input)
+                
+                # Display response
+                print("\n" + "─" * 60)
+                for resp in df['response']:
+                    print(f"{resp}")
+                print("─" * 60 + "\n")
+                    
+            except (KeyboardInterrupt, EOFError):
+                print("\n\nExiting...")
+                break
+            except Exception as e:
+                print(f"\n⚠ Error: {e}\n")
 
     def console_generate(self) -> None:
-        """Interactive mode: prompt for user input and generate responses."""
+        """Legacy: Interactive mode for generation."""
+        print("Note: Use interactive_console() for better UI with tab switching.\n")
         print("Interactive generation mode. Type 'exit' to quit.\n")
+        
         while True:
             try:
-                print("User: ", end="", flush=True)
-                user_input = ""
-                while True:
-                    try:
-                        line = input()
-                        user_input += line + "\n"
-                    except EOFError:
-                        break
-                user_input = user_input.rstrip()
+                user_input = input("User: ")
+                if user_input.lower() == 'exit':
+                    print("Exiting interactive session.")
+                    break
+                
+                if not user_input:
+                    continue
+                
+                df = self.generate(user_input)
+                for resp in df['response']:
+                    print(f"Assistant: {resp}\n")
+                    
             except (EOFError, KeyboardInterrupt):
                 print("\nExiting interactive session.")
                 break
-
-            if user_input.lower() == 'exit':
-                print("Exiting interactive session.")
-                break
-            if not user_input:
-                continue
-
-            try:
-                df = self.generate(user_input)
-                for _, resp in enumerate(df['response'], 1):
-                    print(f"Assistant: {resp}\n")
             except Exception as e:
                 logging.error(f"Generation error: {e}")
-    
+
     def console_chat_completions(self) -> None:
-        print("Interactive generation mode. Type 'exit' to quit.\n")
+        """Legacy: Interactive mode for chat."""
+        print("Note: Use interactive_console() for better UI with tab switching.\n")
+        print("Interactive chat mode. Type 'exit' to quit.\n")
+        
         while True:
             try:
-                print("User: ", end="", flush=True)
-                user_input = ""
-                while True:
-                    try:
-                        line = input()
-                        user_input += line + "\n"
-                    except EOFError:
-                        break
-                user_input = user_input.rstrip()
+                user_input = input("User: ")
+                if user_input.lower() == 'exit':
+                    print("Exiting interactive session.")
+                    break
+                
+                if not user_input:
+                    continue
+                
+                conversation = [{'role': 'user', 'content': user_input}]
+                formatted_prompt = self.tokenizer.apply_chat_template(
+                    conversation,
+                    tokenize=False,
+                    add_generation_prompt=True
+                )
+                
+                df = self.generate(formatted_prompt)
+                for resp in df['response']:
+                    print(f"Assistant: {resp}\n")
+                    
             except (EOFError, KeyboardInterrupt):
                 print("\nExiting interactive session.")
                 break
-
-            if user_input.lower() == 'exit':
-                print("Exiting interactive session.")
-                break
-            if not user_input:
-                continue
-
-            try:
-                conversation = [{'role': 'user', 'content': user_input}]
-                conversation = self.tokenizer.apply_chat_template(conversation, tokenize=False, add_generation_prompt=True)
-                df = self.generate(conversation)
-                for _, resp in enumerate(df['response'], 1):
-                    print(f"Assistant: {resp}\n")
             except Exception as e:
                 logging.error(f"Generation error: {e}")
 
 if __name__ == '__main__':
     config = ModelConfig(
-        model_name="Qwen/Qwen2.5-7B",
-        lora_path="/mnt/home/al2644/research/projects/rlvr/sft/LLaMA-Factory/outputs/math8k/Qwen2.5-7B-math8k-distill-QwQ-32B-16k-10epochs-5e-5lr/checkpoint-100",
-        tensor_parallel_size=2,
+        model_name="open-thoughts/OpenThinker3-1.5B",
+        tensor_parallel_size=1,
         gpu_memory_utilization=0.85,
         dtype="bfloat16",
-        max_tokens=16384,
+        max_tokens=32768,
         temperature=0.6,
         top_p=1.0,
-        top_k=-1
+        top_k=-1,
     )
     engine = OpenLMEngine(config)
-    engine.console_chat_completions()
+    engine.interactive_console()

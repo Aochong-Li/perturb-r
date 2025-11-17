@@ -6,7 +6,7 @@ from core.openai_engine import *
 
 import argparse
 from datasets import load_dataset, load_from_disk
-from reward_score.math500 import math_if_boxed
+from reward_score.math_eval import math_if_boxed
 from reward_score.countdown import compute_score as countdown_compute_score, extract_solution as countdown_extract_solution
 
 import numpy as np
@@ -64,6 +64,7 @@ class BenchmarkEval(OpenLMEngine):
         self.client_name = client_name
         self.filename_suffix = filename_suffix
         self.system_prompt = system_prompt
+        self.sample_size = sample_size
 
         os.makedirs(self.output_dir, exist_ok=True)
         self.output_filepath = os.path.join(self.output_dir, f"{self.nick_name}{self.filename_suffix if self.filename_suffix else ''}.pickle")
@@ -78,28 +79,6 @@ class BenchmarkEval(OpenLMEngine):
             split_name,
             sample_size
         )
-
-        if self.client_name == '':
-            # Run locally
-            # Initialize model config
-            config = ModelConfig(
-                model_name=model_name,
-                tokenizer_name=tokenizer_name,
-                tensor_parallel_size=self.tensor_parallel_size,
-                data_parallel_size=self.data_parallel_size,
-                gpu_memory_utilization=self.gpu_memory_utilization,
-                dtype=self.dtype,
-                max_tokens=self.max_tokens,
-                temperature=self.temperature,
-                top_p=self.top_p,
-                top_k=self.top_k,
-                n = self.sample_k,
-                max_num_batched_tokens=self.max_num_batched_tokens
-            )
-            # Initialize parent class
-            # _ = AutoModelForCausalLM.from_pretrained(model_name)
-            super().__init__(config=config)
-            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         
         print(f"Start evaluating {self.nick_name} on dataset: {dataset_name_or_path} | subset: {subset_name} | split: {split_name} | avg@{self.sample_k}")
 
@@ -117,14 +96,16 @@ class BenchmarkEval(OpenLMEngine):
         
         # HACK
         root_dir = os.path.dirname(self.output_dir)
-        common_problems = pd.read_pickle(os.path.join(root_dir, 'low_pr_problems.pickle'))
-        self.df = self.df.loc[self.df['problem'].isin(common_problems)].reset_index(drop=True)
-        # self.df = self.df.loc[self.df.index.repeat(self.sample_k)].reset_index(drop=True)
-        # self.sample_k = 1
-        # END HACK
+        common_problems = pd.read_pickle(os.path.join(root_dir, 'teacher_problems.pickle'))
+        self.df = self.df.loc[self.df['problem'].isin(common_problems)]
+        self.df = self.df.drop_duplicates(subset=['problem'])
         
-        if sample_size:
-            self.df = self.df.sample(n=sample_size, random_state=45).reset_index(drop = True)
+        if self.sample_size:
+            self.df = self.df.sample(n=self.sample_size, random_state=45).reset_index(drop=True)
+        
+        self.df = self.df.loc[self.df.index.repeat(self.sample_k)].reset_index(drop=True)
+        self.sample_k = 1
+        # END HACK
 
     def apply_chat_template (self, question: str):
         chat_history = [
@@ -142,10 +123,7 @@ class BenchmarkEval(OpenLMEngine):
         return tokenized_prompt
     
     def eval(self) -> None:
-        if self.client_name == '':
-            self.local_eval()
-        else:
-            self.api_eval()
+        self.api_eval()
 
         self.df = self.df.loc[np.repeat(self.df.index, self.sample_k)].reset_index(drop=True)
         self.response.index = self.df.index
@@ -162,19 +140,19 @@ class BenchmarkEval(OpenLMEngine):
         except:
             print(f"Error evaluating {self.nick_name}")
             
-        try:
-            self.result_df['if_boxed'] = self.result_df['response'].apply(math_if_boxed)
-        except:
-            self.result_df['if_boxed'] = None
+        # try:
+        #     self.result_df['if_boxed'] = self.result_df['response'].apply(math_if_boxed)
+        # except:
+        #     self.result_df['if_boxed'] = None
+
         self.result_df.to_pickle(self.output_filepath)
         
     def api_eval(self) -> None:
         os.makedirs(self.output_dir + "/api", exist_ok=True)
         # HACK
-        self.df["prompt"] = self.df["problem"] + '\n\n' + self.system_prompt
+        self.df["prompt"] = self.df["problem"] # + '\n\n' + self.system_prompt
         # END HACK
 
-        import pdb; pdb.set_trace()
         engine = OpenAI_Engine(
             input_df=self.df,
             prompt_template="{prompt}",
@@ -188,11 +166,10 @@ class BenchmarkEval(OpenLMEngine):
             temperature=self.temperature,
             max_tokens=self.max_tokens,
             top_p=self.top_p,
-            n=self.sample_k,
             mode="chat_completions"
         )
-        # engine.run_model(overwrite=self.overwrite)
-        self.response = engine.retrieve_outputs(overwrite=self.overwrite)
+        engine.run_model(overwrite=self.overwrite)
+        self.response = engine.retrieve_outputs(overwrite=self.overwrite, num_workers=200)
         self.response = self.response.set_index('idx').explode(['response']).reset_index(drop=True)
 
     def local_eval(self) -> None:
@@ -240,8 +217,8 @@ if __name__=="__main__":
                         help="Name of the client to use")
     args = parser.parse_args()
 
-    # HACK
-    SYSTEM_PROMPT = "Please put the final answer inside \\boxed{} tag."
+    SYSTEM_PROMPT = ""
+    #"Please put the final answer inside \\boxed{} tag."
     # "You are the smartest mathematician in the world. Please reason step by step and put the final answer inside \\boxed{} tag."
     engine = BenchmarkEval(
         **vars(args),
