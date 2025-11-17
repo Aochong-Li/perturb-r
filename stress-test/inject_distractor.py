@@ -28,6 +28,7 @@ class InjectDistractor(OpenLMEngine):
         results_dir: str,
         sample_size: int,
         num_distract_candidates: int,
+        full_solve_rate: bool = False,
         tensor_parallel_size: int = 1,
         gpu_memory_utilization: float = 0.85,
         dtype: str = "bfloat16",
@@ -50,6 +51,7 @@ class InjectDistractor(OpenLMEngine):
         self.results_dir = results_dir
         self.sample_size = sample_size
         self.num_distract_candidates = num_distract_candidates
+        self.full_solve_rate = full_solve_rate
         self.tensor_parallel_size = tensor_parallel_size
         self.gpu_memory_utilization = gpu_memory_utilization
         self.dtype = dtype
@@ -64,8 +66,7 @@ class InjectDistractor(OpenLMEngine):
         self.overwrite = overwrite
         self.client_name = client_name
 
-        # Create output directory if it doesn't exist
-        self.output_dir = os.path.join(self.results_dir, "inject_distractor")
+        self.output_dir = os.path.join(self.results_dir, "inject_distractor" if not self.full_solve_rate else "inject_distractor_shared")
         os.makedirs(self.output_dir, exist_ok=True)
         
         out_pickle = os.path.join(self.output_dir, f"{self.nick_name}.pickle")
@@ -77,7 +78,6 @@ class InjectDistractor(OpenLMEngine):
         self.max_position_embeddings = cfg.max_position_embeddings
 
         if self.client_name == '':    
-            # Initialize model config
             config = ModelConfig(
                 model_name=self.model_name,
                 tokenizer_name=self.tokenizer_name,
@@ -91,10 +91,9 @@ class InjectDistractor(OpenLMEngine):
                 max_num_batched_tokens=self.max_num_batched_tokens,
                 max_model_len=self.max_position_embeddings
             )
-            # Initialize parent class
             # HACK
             super().__init__(config=config)
-            # self.tokenizer = AutoTokenizer.from_pretrained(self.tokenizer_name)
+            self.tokenizer = AutoTokenizer.from_pretrained(self.tokenizer_name)
             
         self.load_dataset()
     
@@ -103,7 +102,8 @@ class InjectDistractor(OpenLMEngine):
     def load_dataset(self) -> None:
         self.dataset_path = os.path.join(self.results_dir, "benchmark", f"{self.nick_name}.pickle")
         self.df = pd.read_pickle(self.dataset_path)
-        self.k = self.df.groupby('problem').size().max()
+        self.k = self.df.groupby(['source', 'problem']).size().max()
+        
         self.df['response_tokens'] = self.df.apply(
             lambda x: len(self.tokenizer.encode(x['response'])) if x['model_is_correct'] else self.max_position_embeddings,
             axis = 1
@@ -113,7 +113,10 @@ class InjectDistractor(OpenLMEngine):
         self.df = self.df[self.df['response_tokens'] >= MIN_THINKING_TOKENS]
         self.rate = self.df.groupby('problem').agg({'model_is_correct': 'sum', 'response_tokens': 'min'}) \
             .reset_index().rename(columns = {"model_is_correct": "solve_n", "response_tokens": "min_tokens"})
+        
         prob_df = self.rate[(self.rate['solve_n'] > 0) & (self.rate['min_tokens'] < self.max_position_embeddings - BUFFER_TOKENS)]
+        if self.full_solve_rate:
+            prob_df = prob_df[prob_df['solve_n'] == self.k]
         self.df = self.df[self.df.problem.isin(prob_df.problem)]
 
         # HACK: restirct problems in distraction_problems.pickle
@@ -128,13 +131,14 @@ class InjectDistractor(OpenLMEngine):
             .rdiv(1.0)
         )
         prob_df['w'] = inv_counts / inv_counts.sum()
-        chosen = prob_df.sample(n=self.sample_size, weights='w', random_state=42)['problem'].tolist()
+        chosen = prob_df.sample(n=min(self.sample_size, len(prob_df)), weights='w', random_state=42)['problem'].tolist()
 
         self.df = self.df[
             self.df.problem.isin(chosen) &
             (self.df.model_is_correct == 1) &
             (self.df.response_tokens < self.max_position_embeddings - BUFFER_TOKENS)
         ].reset_index(drop = True)
+
         self.df = self.df.drop_duplicates(subset = 'problem').reset_index(drop = True)
 
         self.df = self.df[['problem', 'solution', 'source', 'response']].rename(columns = {'response': 'original_response'})
@@ -151,15 +155,15 @@ class InjectDistractor(OpenLMEngine):
         self.distractors["reasoning_chunks"] = self.distractors["reasoning_chunks"].apply(lambda x: equal_chunk(x, self.granularity))
         # self.distractors["reasoning_chunks"] = self.distractors["reasoning_chunks"].apply(lambda x: x[1:]) # drop the first paragraph
         
+        # Filter distractors that are too short or too long
         stats = self.df["reasoning_chunks"].str.len().describe([.8, .9])
         min_chunks, max_chunks = int(stats['80%']), int(stats['90%'])
+        self.distractors = self.distractors[self.distractors['response_tokens'] <= self.max_position_embeddings - BUFFER_TOKENS]
         self.distractors = self.distractors[self.distractors['reasoning_chunks'].str.len() >= min_chunks]
         self.distractors['reasoning_chunks'] = self.distractors['reasoning_chunks'].apply(lambda x: x[:max_chunks])
         
-        # Add solve_n information for each distractor problem
         distractor_solve_info = self.rate[['problem', 'solve_n']].rename(columns={'problem': 'distractor_problem', 'solve_n': 'distractor_solve_n'})
         
-        # Randomly sample distractors without considering solve rate
         self.distractors = (
             self.distractors
                 .drop_duplicates(subset = 'problem')
@@ -202,7 +206,6 @@ class InjectDistractor(OpenLMEngine):
         return original_reasoning + distractor_reasoning
 
     def distract(self):
-        # Build ratio grids via cross join (avoids list-in-cells + explode)
         windows = np.round(np.arange(0, 1, self.unit), 2).tolist()
         distractor_windows = np.round(np.arange(self.unit, 1 + 1e-6, self.unit), 2).tolist() # [self.unit]
 
@@ -263,6 +266,19 @@ class InjectDistractor(OpenLMEngine):
         
         self.df["prompt"] = template_prefix + self.df['problem'] + template_suffix + self.df['reasoning_w_distractor']
         self.df = self.df.drop(columns = ['reasoning_w_distractor'])
+
+        # HACK
+        if self.full_solve_rate:
+            try:
+                self.prior_df = pd.read_pickle(os.path.join(self.results_dir, "inject_distractor", f"{self.nick_name}.pickle"))
+                self.prior_df = self.prior_df[self.prior_df['solve_n'] == self.k]
+                self.df = self.df[~self.df['problem'].isin(self.prior_df['problem'])]
+                if len(self.df) == 0:
+                    print(f"No problems left to evaluate for {self.nick_name}")
+                    exit()
+            except:
+                self.prior_df = pd.DataFrame(columns = self.df.columns)
+        # END HACK
         
         if self.client_name == '':
             self.local_eval()
@@ -276,6 +292,11 @@ class InjectDistractor(OpenLMEngine):
         self.result_df['pred'] = self.result_df['post_distraction_response'].apply(lambda x: x.split('</think>')[-1].strip() if '</think>' in x else x)
         self.result_df['ground_truth'] = self.result_df['solution']
         # self.result_df['if_boxed'] = self.result_df['pred'].apply(math_if_boxed)
+
+        # HACK
+        if self.full_solve_rate:
+            self.result_df = pd.concat([self.result_df, self.prior_df], ignore_index=True)
+        # END HACK
         
         self.result_df.to_pickle(output_path)
 
@@ -291,6 +312,8 @@ if __name__=="__main__":
                         help="Number of problems to sample for the stress test")
     parser.add_argument("--num_distract_candidates", type=int, default=50,
                         help="Number of problems to use as distractors")
+    parser.add_argument("--full_solve_rate", action="store_true",
+                        help="Use full solve rate for sampling problems")    
     
     parser.add_argument("--tensor_parallel_size", type=int, default=1,
                         help="Number of GPUs for tensor parallelism")
@@ -319,6 +342,7 @@ if __name__=="__main__":
                         help="Overwrite existing results")
     parser.add_argument("--client_name", type=str, default="",
                         help="Name of the client (for OpenAI or other APIs)")
+
     args = parser.parse_args()
     
     engine = InjectDistractor(

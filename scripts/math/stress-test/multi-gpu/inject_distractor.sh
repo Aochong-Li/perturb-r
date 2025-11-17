@@ -26,5 +26,5 @@ python stress-test/inject_distractor.py \
     --top_p 0.95 \
     --top_k -1 \
     --granularity 30 \
-    --max_num_batched_tokens 8192 \
+    --max_num_batched_tokens 65536 \
     --unit 0.2

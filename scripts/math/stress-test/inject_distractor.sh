@@ -2,7 +2,7 @@ set -ex
 
 # TODO: before running this script, run the following command to filter the questions
 # bash scripts/filter_questions.sh
-export CUDA_VISIBLE_DEVICES=0,1
+export CUDA_VISIBLE_DEVICES=2,3,6,7
 MODELS_YAML="config/market_models.yaml"
 DATASET_NAME="allcode"
 
@@ -25,7 +25,7 @@ echo "$MODELS_INFO" | while IFS=, read -r model_name nick_name; do
         --results_dir "${RESULTS_DIR}" \
         --sample_size 250 \
         --num_distract_candidates 50 \
-        --tensor_parallel_size 1 \
+        --tensor_parallel_size 4 \
         --gpu_memory_utilization 0.9 \
         --dtype bfloat16 \
         --max_tokens 32768 \
