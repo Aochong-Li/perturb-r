@@ -102,7 +102,8 @@ class InjectDistractor(OpenLMEngine):
     def load_dataset(self) -> None:
         self.dataset_path = os.path.join(self.results_dir, "benchmark", f"{self.nick_name}.pickle")
         self.df = pd.read_pickle(self.dataset_path)
-        self.k = self.df.groupby(['source', 'problem']).size().max()
+        self.solve_rate = self.df.groupby(['source', 'problem'])[['model_is_correct']].sum().reset_index().rename(columns = {'model_is_correct': 'solve_n'})
+        self.k = self.solve_rate['solve_n'].max()
         
         self.df['response_tokens'] = self.df.apply(
             lambda x: len(self.tokenizer.encode(x['response'])) if x['model_is_correct'] else self.max_position_embeddings,
@@ -111,8 +112,8 @@ class InjectDistractor(OpenLMEngine):
         self.original_df = self.df.copy()
 
         self.df = self.df[self.df['response_tokens'] >= MIN_THINKING_TOKENS]
-        self.rate = self.df.groupby('problem').agg({'model_is_correct': 'sum', 'response_tokens': 'min'}) \
-            .reset_index().rename(columns = {"model_is_correct": "solve_n", "response_tokens": "min_tokens"})
+        self.rate = self.df.groupby(['problem', 'source']).agg({'response_tokens': 'min'}).reset_index().rename(columns = {"response_tokens": "min_tokens"})
+        self.rate = self.rate.merge(self.solve_rate, on = ['problem', 'source'], how = 'left')
         
         prob_df = self.rate[(self.rate['solve_n'] > 0) & (self.rate['min_tokens'] < self.max_position_embeddings - BUFFER_TOKENS)]
         if self.full_solve_rate:
@@ -272,7 +273,7 @@ class InjectDistractor(OpenLMEngine):
             try:
                 self.prior_df = pd.read_pickle(os.path.join(self.results_dir, "inject_distractor", f"{self.nick_name}.pickle"))
                 self.prior_df = self.prior_df[self.prior_df['solve_n'] == self.k]
-                self.df = self.df[~self.df['problem'].isin(self.prior_df['problem'])]
+                self.df = self.df[~self.df[['problem', 'source']].apply(tuple, axis=1).isin(self.prior_df[['problem', 'source']].apply(tuple, axis=1))]
                 if len(self.df) == 0:
                     print(f"No problems left to evaluate for {self.nick_name}")
                     exit()
@@ -344,7 +345,6 @@ if __name__=="__main__":
                         help="Name of the client (for OpenAI or other APIs)")
 
     args = parser.parse_args()
-    
     engine = InjectDistractor(
         **vars(args),
     )
