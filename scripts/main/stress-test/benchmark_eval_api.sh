@@ -10,8 +10,8 @@ OUTPUT_DIR="./results/${DATASET_NAME}/benchmark"
 
 # Define models as array of "model_name,nick_name" pairs
 MODELS_NICK=(
-    # "Qwen/Qwen3-235B-A22B-Thinking-2507,Qwen3-235B-A22B-2507"
-    "deepseek-ai/DeepSeek-R1-0528,DeepSeek-R1-0528"
+    "Qwen/Qwen3-235B-A22B-Thinking-2507,Qwen3-235B-A22B-2507"
+    # "deepseek-ai/DeepSeek-R1-0528,DeepSeek-R1-0528"
     # "Qwen/Qwen3-235B-A22B,Qwen3-235B-A22B"
     # "Qwen/QwQ-32B,QwQ-32B-teacher"
     # "Qwen/Qwen3-32B,Qwen3-32B-teacher"

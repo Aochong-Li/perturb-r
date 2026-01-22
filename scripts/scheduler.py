@@ -53,16 +53,40 @@ def main():
     """
     python scripts/scheduler.py \
         --models-yaml config/market_models.yaml \
-        --benchmark-script scripts/math/stress-test/multi-gpu/benchmark_eval.sh \
+        --benchmark-script scripts/main/stress-test/multi-gpu/benchmark_eval.sh \
         --poll-interval 5 \
         --gpu-num 2
     
     python scripts/scheduler.py \
         --models-yaml config/market_models.yaml \
-        --benchmark-script scripts/math/stress-test/multi-gpu/inject_distractor.sh \
+        --benchmark-script scripts/main/stress-test/multi-gpu/teacher_guide_correct.sh \
+        --poll-interval 5 \
+        --gpu-num 2
+    
+    python scripts/scheduler.py \
+        --models-yaml config/market_models.yaml \
+        --benchmark-script scripts/main/stress-test/multi-gpu/teacher_guide.sh \
         --poll-interval 5 \
         --gpu-num 1
- 
+    
+    python scripts/scheduler.py \
+        --models-yaml config/market_models.yaml \
+        --benchmark-script scripts/main/analysis/multi-gpu/teacher_guide_ppl.sh \
+        --poll-interval 5 \
+        --gpu-num 2
+    
+    python scripts/scheduler.py \
+        --models-yaml config/market_models.yaml \
+        --benchmark-script scripts/main/analysis/multi-gpu/inject_distractor_attention.sh \
+        --poll-interval 5 \
+        --gpu-num 1
+    
+    python scripts/scheduler.py \
+        --models-yaml config/market_models.yaml \
+        --benchmark-script scripts/main/stress-test/multi-gpu/inject_distractor_multiple_model.sh \
+        --poll-interval 5 \
+        --gpu-num 1
+    
     ps aux | grep benchmark_eval.sh | grep -v grep
     """
     parser = argparse.ArgumentParser(description="GPU job scheduler for model benchmarks.")

@@ -319,9 +319,7 @@ def strip_string(string):
 
 if __name__ == "__main__":
     """
-    conda activate zero
-    python reward_score/math_eval.py --file_path ./results/math500amc23/benchmark
-    python reward_score/math_eval.py --input_dir ./results/math500amc23/inject_distractor
+    python reward_score/math_eval.py --input_dir ./results/allmath/inject_distractor_multiple_model
     """
     parser = argparse.ArgumentParser()
     parser.add_argument("--file_path", type=str, required=False)
@@ -377,6 +375,7 @@ if __name__ == "__main__":
                     df.loc[df[response_col] == df[pred_col], is_correct_col] = 0.0
 
                 if if_boxed:
+                    df['if_boxed'] = df.apply(lambda x: math_if_boxed(x[pred_col]), axis=1)
                     df.loc[~df["if_boxed"], is_correct_col] = 0.0
 
                 df.to_pickle(os.path.join(args.input_dir, fname))

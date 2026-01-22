@@ -10,7 +10,7 @@ import re
 import os
 import time
 from concurrent.futures import ProcessPoolExecutor
-from reward_score.math500 import math_verify_score, math_if_boxed
+from reward_score.math_eval import math_verify_score, math_if_boxed
 
 PROMPT_TEMPLATE = '''### System Prompt
 You are an unbiased examiner who evaluates whether a student's answer to a given question is correct. 
@@ -158,18 +158,10 @@ class ModelJudge():
 if __name__ == "__main__":
     """
     Example usage:
-    python reward_score/model-judge.py \
-      --input_filepath ./results/allmath_sub/inject_distractor/R1-Distill-Llama-8B.pickle \
-      --output_dir ./results/allmath_sub/inject_distractor/model_judge \
-      --nick_name R1-Distill-Llama-8B
-
-    python reward_score/model-judge.py \
-      --input_dir ./results/allmath/inject_distractor_head_ablation \
-      --output_dir ./results/allmath/inject_distractor_head_ablation/model_judge
-
-    python reward_score/model-judge.py \
-      --input_dir ./results/math500amc23/benchmark \
-      --output_dir ./results/math500amc23/benchmark/model_judge \
+    python reward_score/llm-as-judge.py \
+      --input_dir ./results/allmath/teacher_guide_correct \
+      --output_dir ./results/allmath/teacher_guide_correct/llm_as_judge \
+      --nick_name teacher_guide_correct
       --parallel \
       --max_workers 5
     """
@@ -190,10 +182,10 @@ if __name__ == "__main__":
     problem_col = "problem"
     gt_col = "ground_truth"
     pred_col = "pred"
-    response_col = "response"
+    response_col = "student_response"
     strict_boxed = False
     strict_has_answer = True
-    import pdb; pdb.set_trace()
+
     if args.input_filepath:
         input_df = pd.read_pickle(args.input_filepath)
         judge_engine = ModelJudge(
@@ -215,8 +207,7 @@ if __name__ == "__main__":
     
     elif args.input_dir and args.parallel:
         files = [f for f in os.listdir(args.input_dir) if f.endswith(".pickle")]
-        files = [f for f in files if 'limo1000' in f]
-
+        
         def process_one(fname):
             import os, pandas as pd
             nick = fname.replace(".pickle", "")

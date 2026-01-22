@@ -227,13 +227,13 @@ class InjectDistractor(OpenLMEngine):
         self.responses = []
         self.mini_batch_size = self.df.shape[0] if self.mini_batch_size is None else self.mini_batch_size
         for batch in chunked(list(self.df["prompt"]), self.mini_batch_size):
-            new_sampling_params = [
+            sampling_overrides = [
                 {
                     "max_tokens": min(self.max_tokens, self.max_position_embeddings - len(self.tokenizer.encode(prompt)) - 1)
                 }
                 for prompt in batch
             ]
-            out = self.generate(prompts=batch, new_sampling_params=new_sampling_params)
+            out = self.generate(prompts=batch, sampling_overrides=sampling_overrides)
             self.responses.append(out)
         self.response = pd.concat(self.responses, ignore_index=True).rename(columns={'response': 'post_distraction_response'})
         self.response.index = self.df.index

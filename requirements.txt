@@ -4,7 +4,7 @@ aiohttp==3.12.4
 aiosignal==1.3.2
 airportsdata==20250523
 annotated-types==0.7.0
-antlr4-python3-runtime==4.13.2
+# antlr4-python3-runtime==4.13.2
 anyio==4.9.0
 argon2-cffi==25.1.0
 argon2-cffi-bindings==21.2.0
@@ -100,8 +100,8 @@ jupyterlab_server==2.27.3
 jupyterlab_widgets==3.0.15
 kiwisolver==1.4.8
 lark==1.2.2
-latex2sympy2==1.9.1
-latex2sympy2_extended==1.10.2
+# latex2sympy2==1.9.1
+# latex2sympy2_extended==1.10.2
 llguidance==0.7.27
 llvmlite==0.44.0
 lm-format-enforcer==0.10.11

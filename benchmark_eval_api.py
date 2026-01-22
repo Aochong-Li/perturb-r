@@ -168,8 +168,8 @@ class BenchmarkEval(OpenLMEngine):
             top_p=self.top_p,
             mode="chat_completions"
         )
-        engine.run_model(overwrite=self.overwrite)
-        self.response = engine.retrieve_outputs(overwrite=self.overwrite, num_workers=200)
+        engine.run_model(overwrite=self.overwrite, num_workers=200)
+        self.response = engine.retrieve_outputs(overwrite=self.overwrite)
         self.response = self.response.set_index('idx').explode(['response']).reset_index(drop=True)
 
     def local_eval(self) -> None:

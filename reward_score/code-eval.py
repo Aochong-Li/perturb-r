@@ -26,6 +26,13 @@ from typing import Optional
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from tqdm import tqdm
 
+# Use local temp directory to avoid NFS locking issues
+if 'TMPDIR' not in os.environ:
+    local_tmp = '/tmp/code_eval_tmp'
+    os.makedirs(local_tmp, exist_ok=True)
+    os.environ['TMPDIR'] = local_tmp
+    tempfile.tempdir = local_tmp
+
 
 def extract_code(text: str) -> Optional[str]:
     """Extract code from ```python ``` blocks.
@@ -325,7 +332,7 @@ def evaluate_row(args):
         Tuple of (index, result)
     """
     idx, row = args
-    if "distractor_problem" not in row.keys():
+    if "distractor_problem" not in row.keys() and 'teacher' not in row.keys():
         # Benchmark Evaluation
         result = code_verify_score(
             row.get('problem'),
@@ -335,7 +342,7 @@ def evaluate_row(args):
             row.get('entry_point')
         )
         return idx, result
-    else:
+    elif 'distractor_problem' in row.keys() or 'teacher' in row.keys():
         # Recoverability Evaluation
         if 'humaneval' in row.get('source'):
             problem = row.get('problem')
@@ -352,6 +359,8 @@ def evaluate_row(args):
             row.get('entry_point', entry_point)
         )
         return idx, result
+    else:
+        raise ValueError(f"Invalid source: {row.get('source')}")
 
 
 def code_verify_score(problem: str, pred: str, solution: str, source: str, entry_point: str = None) -> Optional[float]:
@@ -387,7 +396,8 @@ if __name__ == "__main__":
     Usage:
     conda activate rlvr_eval_empire
     python reward_score/code_eval.py --input_dir ./results/allcode/benchmark --n_workers 64
-    python reward_score/code_eval.py --input_dir ./results/allcode/inject_distractor --n_workers 64
+    python reward_score/code_eval.py --input_dir ./results/allcode/inject_distractor_shared --n_workers 64 --overwrite
+    python reward_score/code_eval.py --input_dir ./results/allcode/teacher_guide --n_workers 64 --overwrite
     python reward_score/code_eval.py --file_path ./results/allcode/benchmark/R1-Distill-Qwen-1.5B.pickle --n_workers 64
     """
     parser = argparse.ArgumentParser()

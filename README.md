@@ -14,4 +14,6 @@ source rlvr_eval_empire/bin/activate
 
 uv pip install --no-deps -r requirements.txt
 uv pip install --no-deps latex2sympy2==1.9.1
+uv pip install --no-deps latex2sympy2_extended==1.10.2
+uv pip install --no-deps antlr4-python3-runtime==4.13.2
 ```

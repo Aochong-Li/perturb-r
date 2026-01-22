@@ -11,7 +11,7 @@ export CUDA_VISIBLE_DEVICES=$GPU_ID
 DATASET_NAME="allmath"
 RESULTS_DIR="./results/${DATASET_NAME}"
 
-python stress-test/teacher_guide.py \
+python stress-test/teacher_guide_correct.py \
     --model_name "${MODEL}" \
     --nick_name "${NICK}" \
     --tokenizer_name "${MODEL}" \
@@ -21,10 +21,9 @@ python stress-test/teacher_guide.py \
     --dtype bfloat16 \
     --max_tokens 32768 \
     --temperature 0.6 \
+    --sample_size 250 \
     --top_p 0.95 \
     --top_k -1 \
     --granularity 30 \
     --max_num_batched_tokens 32768 \
-    --num_responses_per_problem 1 \
-    --max_solve_n 1
-
+    --num_responses_per_problem 1
