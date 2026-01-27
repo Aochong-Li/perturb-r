@@ -10,7 +10,7 @@ import re
 import os
 import time
 from concurrent.futures import ProcessPoolExecutor
-from reward_score.math_eval import math_verify_score, math_if_boxed
+from reward_score.matheval import math_verify_score, math_if_boxed
 
 PROMPT_TEMPLATE = '''### System Prompt
 You are an unbiased examiner who evaluates whether a student's answer to a given question is correct. 
@@ -158,12 +158,17 @@ class ModelJudge():
 if __name__ == "__main__":
     """
     Example usage:
-    python reward_score/llm-as-judge.py \
+    python reward_score/llmasjudge.py \
       --input_dir ./results/allmath/teacher_guide_correct \
       --output_dir ./results/allmath/teacher_guide_correct/llm_as_judge \
-      --nick_name teacher_guide_correct
+      --nick_name teacher_guide_correct \
       --parallel \
       --max_workers 5
+
+    python reward_score/llmasjudge.py \
+      --input_filepath ./results/allmath/teacher_guide_correct/R1-Distill-Qwen-1.5B.pickle \
+      --output_dir ./results/allmath/teacher_guide_correct/llm_as_judge \
+      --nick_name R1-Distill-Qwen-1.5B
     """
 
     parser = argparse.ArgumentParser(
@@ -178,7 +183,6 @@ if __name__ == "__main__":
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing outputs if set.")
     
     # TODO: check the column names are correct every time we run this script
-    args = parser.parse_args()
     problem_col = "problem"
     gt_col = "ground_truth"
     pred_col = "pred"
@@ -186,6 +190,8 @@ if __name__ == "__main__":
     strict_boxed = False
     strict_has_answer = True
 
+    args = parser.parse_args()
+    
     if args.input_filepath:
         input_df = pd.read_pickle(args.input_filepath)
         judge_engine = ModelJudge(
@@ -203,11 +209,12 @@ if __name__ == "__main__":
             strict_boxed=strict_boxed
             )
         result_df = judge_engine.merge()
-        result_df.to_pickle(os.path.join(args.output_dir, f"{args.nick_name}.pickle"))
+        input_dir = os.path.dirname(args.input_filepath)
+        result_df.to_pickle(os.path.join(input_dir, f"{args.nick_name}.pickle"))
     
     elif args.input_dir and args.parallel:
         files = [f for f in os.listdir(args.input_dir) if f.endswith(".pickle")]
-        
+
         def process_one(fname):
             import os, pandas as pd
             nick = fname.replace(".pickle", "")
