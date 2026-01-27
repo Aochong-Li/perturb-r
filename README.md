@@ -1,19 +1,26 @@
 ## Installation
 
+### uv environment (recommended)
+```bash
+# Clone with submodules
+git clone --recursive <your-repo-url>
+cd perturb-r
+
+# Install dependencies (creates venv automatically)
+uv sync
+```
+
 ### conda environment
 ```bash
+# Clone with submodules
+git clone --recursive <your-repo-url>
+cd perturb-r
+
+# Create environment
 conda env create -f environment.yml
-pip install --no-deps requirements.txt
+conda activate rlvr_eval_empire
+
+# Install additional dependencies
+pip install -r requirement.txt
 ```
 
-
-### uv environment
-```bash
-uv venv rlvr_eval_empire --python 3.10.16
-source rlvr_eval_empire/bin/activate
-
-uv pip install --no-deps -r requirements.txt
-uv pip install --no-deps latex2sympy2==1.9.1
-uv pip install --no-deps latex2sympy2_extended==1.10.2
-uv pip install --no-deps antlr4-python3-runtime==4.13.2
-```
