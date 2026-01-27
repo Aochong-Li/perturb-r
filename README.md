@@ -1,6 +1,6 @@
 ## Installation
 
-### uv environment (recommended)
+### uv environment (not ready, use conda instead)
 ```bash
 # Clone with submodules
 git clone --recursive https://github.com/Aochong-Li/perturb-r.git
