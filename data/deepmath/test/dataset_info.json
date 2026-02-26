@@ -1,0 +1,115 @@
+{
+  "builder_name": "parquet",
+  "citation": "",
+  "config_name": "default",
+  "dataset_name": "deep_math-103_k",
+  "dataset_size": 3714107423,
+  "description": "",
+  "download_checksums": {
+    "hf://datasets/aochongoliverli/DeepMath-103K@bca11775f415778c0036f483e59c4997564e204e/data/train-00000-of-00008.parquet": {
+      "num_bytes": 149853133,
+      "checksum": null
+    },
+    "hf://datasets/aochongoliverli/DeepMath-103K@bca11775f415778c0036f483e59c4997564e204e/data/train-00001-of-00008.parquet": {
+      "num_bytes": 183098335,
+      "checksum": null
+    },
+    "hf://datasets/aochongoliverli/DeepMath-103K@bca11775f415778c0036f483e59c4997564e204e/data/train-00002-of-00008.parquet": {
+      "num_bytes": 183588036,
+      "checksum": null
+    },
+    "hf://datasets/aochongoliverli/DeepMath-103K@bca11775f415778c0036f483e59c4997564e204e/data/train-00003-of-00008.parquet": {
+      "num_bytes": 189971641,
+      "checksum": null
+    },
+    "hf://datasets/aochongoliverli/DeepMath-103K@bca11775f415778c0036f483e59c4997564e204e/data/train-00004-of-00008.parquet": {
+      "num_bytes": 201441009,
+      "checksum": null
+    },
+    "hf://datasets/aochongoliverli/DeepMath-103K@bca11775f415778c0036f483e59c4997564e204e/data/train-00005-of-00008.parquet": {
+      "num_bytes": 203752089,
+      "checksum": null
+    },
+    "hf://datasets/aochongoliverli/DeepMath-103K@bca11775f415778c0036f483e59c4997564e204e/data/train-00006-of-00008.parquet": {
+      "num_bytes": 213976253,
+      "checksum": null
+    },
+    "hf://datasets/aochongoliverli/DeepMath-103K@bca11775f415778c0036f483e59c4997564e204e/data/train-00007-of-00008.parquet": {
+      "num_bytes": 230272740,
+      "checksum": null
+    },
+    "hf://datasets/aochongoliverli/DeepMath-103K@bca11775f415778c0036f483e59c4997564e204e/data/test-00000-of-00001.parquet": {
+      "num_bytes": 54418365,
+      "checksum": null
+    }
+  },
+  "download_size": 1610371601,
+  "features": {
+    "difficulty": {
+      "dtype": "float64",
+      "_type": "Value"
+    },
+    "topic": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "subtopic": {
+      "names": [
+        "Algebra",
+        "Applied Mathematics",
+        "Calculus",
+        "Differential Equations",
+        "Discrete Mathematics",
+        "Geometry",
+        "Number Theory",
+        "Other",
+        "Precalculus"
+      ],
+      "_type": "ClassLabel"
+    },
+    "problem": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "solution": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "task": {
+      "dtype": "string",
+      "_type": "Value"
+    }
+  },
+  "homepage": "",
+  "license": "",
+  "size_in_bytes": 5324479024,
+  "splits": {
+    "train": {
+      "name": "train",
+      "num_bytes": 3587420210,
+      "num_examples": 76409,
+      "shard_lengths": [
+        13552,
+        12551,
+        11551,
+        11102,
+        10551,
+        9551,
+        7551
+      ],
+      "dataset_name": "deep_math-103_k"
+    },
+    "test": {
+      "name": "test",
+      "num_bytes": 126687213,
+      "num_examples": 2610,
+      "dataset_name": "deep_math-103_k"
+    }
+  },
+  "version": {
+    "version_str": "0.0.0",
+    "major": 0,
+    "minor": 0,
+    "patch": 0
+  }
+}

@@ -1,0 +1,81 @@
+{
+  "builder_name": "parquet",
+  "citation": "",
+  "config_name": "default",
+  "dataset_name": "countdown_level_5",
+  "dataset_size": 12518439,
+  "description": "",
+  "download_checksums": {
+    "hf://datasets/aochongoliverli/countdown_level_5@23d3809e2d2277b267b6023caef6992fb2b2ba46/data/train-00000-of-00001.parquet": {
+      "num_bytes": 3661913,
+      "checksum": null
+    },
+    "hf://datasets/aochongoliverli/countdown_level_5@23d3809e2d2277b267b6023caef6992fb2b2ba46/data/test-00000-of-00001.parquet": {
+      "num_bytes": 253849,
+      "checksum": null
+    },
+    "hf://datasets/aochongoliverli/countdown_level_5@23d3809e2d2277b267b6023caef6992fb2b2ba46/data/ood_test-00000-of-00001.parquet": {
+      "num_bytes": 128933,
+      "checksum": null
+    }
+  },
+  "download_size": 4044695,
+  "features": {
+    "nums": {
+      "feature": {
+        "dtype": "int64",
+        "_type": "Value"
+      },
+      "_type": "Sequence"
+    },
+    "target": {
+      "dtype": "int64",
+      "_type": "Value"
+    },
+    "example_solution": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "problem": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "level": {
+      "dtype": "int64",
+      "_type": "Value"
+    },
+    "task": {
+      "dtype": "string",
+      "_type": "Value"
+    }
+  },
+  "homepage": "",
+  "license": "",
+  "size_in_bytes": 16563134,
+  "splits": {
+    "train": {
+      "name": "train",
+      "num_bytes": 11341176,
+      "num_examples": 145000,
+      "dataset_name": "countdown_level_5"
+    },
+    "test": {
+      "name": "test",
+      "num_bytes": 782085,
+      "num_examples": 10000,
+      "dataset_name": "countdown_level_5"
+    },
+    "ood_test": {
+      "name": "ood_test",
+      "num_bytes": 395178,
+      "num_examples": 5000,
+      "dataset_name": "countdown_level_5"
+    }
+  },
+  "version": {
+    "version_str": "0.0.0",
+    "major": 0,
+    "minor": 0,
+    "patch": 0
+  }
+}

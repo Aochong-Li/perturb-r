@@ -1,0 +1,227 @@
+import os
+import pandas as pd
+from transformers import AutoModelForCausalLM
+from core.llm_engine import *
+from core.openai_engine import *
+
+import argparse
+from datasets import load_dataset, load_from_disk
+from reward_score.math_eval import math_if_boxed
+from reward_score.countdown import compute_score as countdown_compute_score, extract_solution as countdown_extract_solution
+
+import numpy as np
+from pathlib import Path
+
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() == "true":
+        return True 
+    elif v.lower() == "false":
+        return False
+
+class BenchmarkEval(OpenLMEngine):
+    def __init__(self,
+                 model_name: str,
+                 nick_name: str,
+                 tokenizer_name: str,
+                 dataset_name_or_path: str = None,
+                 subset_name: str = None,
+                 split_name: str = 'test',
+                 sample_size: int = None,
+                 output_dir: str = './results/hendrycks_math/sample200/benchmark_eval',
+                 tensor_parallel_size: int = 1,
+                 data_parallel_size: int = 1,
+                 gpu_memory_utilization: float = 0.85,
+                 dtype: str = "bfloat16",
+                 system_prompt: str = None, 
+                 max_tokens: int = 16384,
+                 temperature: float = 0.7,
+                 top_p: float = 1.0,
+                 top_k: int = 0,
+                 sample_k: int = 1,
+                 max_num_batched_tokens: int = 8192,
+                 overwrite: bool = False,
+                 client_name: str = '',
+                 filename_suffix: str = ''
+                 ):
+
+        # Initialize attributes first
+        self.model_name = model_name
+        self.nick_name = nick_name
+        self.output_dir = output_dir
+        self.tensor_parallel_size = tensor_parallel_size
+        self.data_parallel_size = data_parallel_size
+        self.gpu_memory_utilization = gpu_memory_utilization
+        self.dtype = dtype
+        self.max_tokens = max_tokens
+        self.temperature = temperature
+        self.top_p = top_p
+        self.top_k = top_k
+        self.sample_k = sample_k
+        self.overwrite = overwrite
+        self.max_num_batched_tokens = max_num_batched_tokens
+        self.client_name = client_name
+        self.filename_suffix = filename_suffix
+        self.system_prompt = system_prompt
+        self.sample_size = sample_size
+
+        os.makedirs(self.output_dir, exist_ok=True)
+        self.output_filepath = os.path.join(self.output_dir, f"{self.nick_name}{self.filename_suffix if self.filename_suffix else ''}.pickle")
+        if not self.overwrite:
+            if os.path.exists(self.output_filepath):
+                print(f"Results already exist for {self.nick_name}")
+                exit()
+        
+        self.load_dataset(
+            dataset_name_or_path,
+            subset_name,
+            split_name,
+            sample_size
+        )
+        
+        print(f"Start evaluating {self.nick_name} on dataset: {dataset_name_or_path} | subset: {subset_name} | split: {split_name} | avg@{self.sample_k}")
+
+    def load_dataset(self, dataset_name: str, subset_name: str, split_name: str, sample_size: int) -> None:
+        try:
+            dataset = load_from_disk(dataset_name)[split_name]
+        except Exception as e:
+            print(f"Error loading from disk: {e}")
+            try:
+                dataset = load_dataset(dataset_name, subset_name)[split_name]
+            except Exception as e:
+                raise RuntimeError(f"Failed to load dataset from Hugging Face: {e}")
+        
+        self.df = pd.DataFrame(dataset)
+        
+        # HACK
+        root_dir = os.path.dirname(self.output_dir)
+        common_problems = pd.read_pickle(os.path.join(root_dir, 'teacher_problems.pickle'))
+        self.df = self.df.loc[self.df['problem'].isin(common_problems)]
+        self.df = self.df.drop_duplicates(subset=['problem'])
+        
+        if self.sample_size:
+            self.df = self.df.sample(n=self.sample_size, random_state=45).reset_index(drop=True)
+        
+        self.df = self.df.loc[self.df.index.repeat(self.sample_k)].reset_index(drop=True)
+        self.sample_k = 1
+        # END HACK
+
+    def apply_chat_template (self, question: str):
+        chat_history = [
+            {'role': 'user', 'content': question}
+        ]
+        if self.system_prompt:
+            chat_history.insert(0, {'role': 'system', 'content': self.system_prompt})
+
+        tokenized_prompt = self.tokenizer.apply_chat_template(
+                chat_history,
+                tokenize = False,
+                add_generation_prompt = True
+            )
+        
+        return tokenized_prompt
+    
+    def eval(self) -> None:
+        self.api_eval()
+
+        self.df = self.df.loc[np.repeat(self.df.index, self.sample_k)].reset_index(drop=True)
+        self.response.index = self.df.index
+        self.df = pd.concat([self.df, self.response], axis=1)
+
+        # Save results
+        self.df.to_pickle(self.output_filepath)
+
+        # Evaluate results
+        try:
+            self.result_df = self.df.copy().dropna(subset=['response'])
+            self.result_df['pred'] = self.result_df['response'].apply(lambda x: x.split('</think>')[-1].strip() if '</think>' in x else x)
+            self.result_df['ground_truth'] = self.result_df['solution']
+        except:
+            print(f"Error evaluating {self.nick_name}")
+            
+        # try:
+        #     self.result_df['if_boxed'] = self.result_df['response'].apply(math_if_boxed)
+        # except:
+        #     self.result_df['if_boxed'] = None
+
+        self.result_df.to_pickle(self.output_filepath)
+        
+    def api_eval(self) -> None:
+        os.makedirs(self.output_dir + "/api", exist_ok=True)
+        # HACK
+        self.df["prompt"] = self.df["problem"] # + '\n\n' + self.system_prompt
+        # END HACK
+
+        engine = OpenAI_Engine(
+            input_df=self.df,
+            prompt_template="{prompt}",
+            # system_message=self.system_prompt if self.system_prompt else "",
+            template_map={"prompt": "prompt"},
+            nick_name=f"benchmark_eval_{self.nick_name}",
+            batch_io_root=str(Path.home()) + "/research/openai_batch_io/reasoning",
+            cache_filepath=self.output_dir + f"/api/{self.nick_name}_api_responses.pickle",
+            model=self.model_name,
+            client_name=self.client_name,
+            temperature=self.temperature,
+            max_tokens=self.max_tokens,
+            top_p=self.top_p,
+            mode="chat_completions"
+        )
+        engine.run_model(overwrite=self.overwrite, num_workers=200)
+        self.response = engine.retrieve_outputs(overwrite=self.overwrite)
+        self.response = self.response.set_index('idx').explode(['response']).reset_index(drop=True)
+
+    def local_eval(self) -> None:
+        self.df["prompt"] = self.df["problem"].apply(self.apply_chat_template)
+        self.response = self.generate(prompts=self.df["prompt"])
+
+if __name__=="__main__":
+    parser = argparse.ArgumentParser(description="Parse Arguments for Reasoner QA evaluation")
+
+    parser.add_argument("--model_name", type=str, required=True, help="Name of the model to use")
+    parser.add_argument("--nick_name", type=str, required=True, help="Nickname for the model")
+    parser.add_argument("--tokenizer_name", type=str, required=True, help="Name of the tokenizer to use")
+    parser.add_argument("--dataset_name_or_path", type=str, required=True, help="Name of the dataset to evaluate on")
+    parser.add_argument("--subset_name", type=str, default=None, help="Name of the dataset subset (default: None)")
+    parser.add_argument("--split_name", type=str, default='test', help="Dataset split to use (default: test)")
+    parser.add_argument("--sample_size", type=int, default=None, help="Number of samples to use (default: None)")
+    parser.add_argument("--output_dir", type=str, default='/share/goyal/lio/reasoning/eval/', 
+                       help="Directory to save evaluation results")
+    parser.add_argument("--filename_suffix", type=str, default="")
+
+    parser.add_argument("--tensor_parallel_size", type=int, default=2,
+                        help="Number of GPUs for tensor parallelism")
+    parser.add_argument("--data_parallel_size", type=int, default=1,
+                        help="Number of GPUs for data parallelism")
+    parser.add_argument("--gpu_memory_utilization", type=float, default=0.75,
+                        help="Fraction of GPU memory to allocate")
+    parser.add_argument("--dtype", type=str, default="bfloat16",
+                        help="Data type for model weights (e.g., bfloat16, float16)")
+    parser.add_argument("--max_tokens", type=int, default=8192,
+                        help="Maximum number of output tokens")
+    parser.add_argument("--temperature", type=float, default=0.6,
+                        help="Sampling temperature")
+    parser.add_argument("--top_p", type=float, default=1.0,
+                        help="Nucleus sampling parameter")
+    parser.add_argument("--top_k", type=int, default=0,
+                        help="Top-k sampling parameter")
+    parser.add_argument("--sample_k", type=int, default=1,
+                        help="Sample@k parameter")
+
+    parser.add_argument("--overwrite", type=str2bool, default=False,
+                        help="Overwrite existing results")
+    parser.add_argument("--max_num_batched_tokens", type=int, default=8192,
+                        help="Maximum number of tokens to batch")
+    parser.add_argument("--client_name", type=str, default='',
+                        help="Name of the client to use")
+    args = parser.parse_args()
+
+    SYSTEM_PROMPT = ""
+    #"Please put the final answer inside \\boxed{} tag."
+    # "You are the smartest mathematician in the world. Please reason step by step and put the final answer inside \\boxed{} tag."
+    engine = BenchmarkEval(
+        **vars(args),
+        system_prompt=SYSTEM_PROMPT
+    )
+    engine.eval()

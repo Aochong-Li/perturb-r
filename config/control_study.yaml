@@ -1,0 +1,277 @@
+models:
+  # Part 1: SFT vs. RL
+  # SFT + RL models
+  # - model_name: "aochongoliverli/Qwen2.5-3B-math8k-QwQ-400steps-dapo-5epochs-8rollouts-16384max-len-step20"
+  #   nick_name: "Qwen2.5-3B-math8k-QwQ-sft-400-step20"
+
+  # - model_name: "aochongoliverli/Qwen2.5-3B-math8k-QwQ-400steps-dapo-5epochs-8rollouts-16384max-len-step40"
+  #   nick_name: "Qwen2.5-3B-math8k-QwQ-sft-400-step40"
+
+  # - model_name: "aochongoliverli/Qwen2.5-3B-math8k-QwQ-400steps-dapo-5epochs-8rollouts-16384max-len-step60"
+  #   nick_name: "Qwen2.5-3B-math8k-QwQ-sft-400-step60"
+
+  # - model_name: "aochongoliverli/Qwen2.5-3B-math8k-QwQ-400steps-dapo-5epochs-8rollouts-16384max-len-step80"
+  #   nick_name: "Qwen2.5-3B-math8k-QwQ-sft-400-step80"
+
+  # - model_name: "aochongoliverli/Qwen2.5-3B-math8k-QwQ-400steps-dapo-5epochs-8rollouts-16384max-len-step100"
+  #   nick_name: "Qwen2.5-3B-math8k-QwQ-sft-400-step100"
+
+  # - model_name: "aochongoliverli/Qwen2.5-3B-math8k-QwQ-400steps-dapo-5epochs-8rollouts-16384max-len-step120"
+  #   nick_name: "Qwen2.5-3B-math8k-QwQ-sft-400-step120"
+
+  # RL models from AM
+  # - model_name: "/mnt/home/al2644/research/projects/rlvr/outputs/math8k/Qwen2.5-3B-math8k-AM-400steps-dapo-5epochs-8rollouts-16384max-len/global_step_20/actor"
+  #   nick_name: "Qwen2.5-3B-math8k-AM-sft-400-step20"
+
+  # - model_name: "/mnt/home/al2644/research/projects/rlvr/outputs/math8k/Qwen2.5-3B-math8k-AM-400steps-dapo-5epochs-8rollouts-16384max-len/global_step_40/actor"
+  #   nick_name: "Qwen2.5-3B-math8k-AM-sft-400-step40"
+
+  # - model_name: "/mnt/home/al2644/research/projects/rlvr/outputs/math8k/Qwen2.5-3B-math8k-AM-400steps-dapo-5epochs-8rollouts-16384max-len/global_step_60/actor"
+  #   nick_name: "Qwen2.5-3B-math8k-AM-sft-400-step60"
+
+  # - model_name: "/mnt/home/al2644/research/projects/rlvr/outputs/math8k/Qwen2.5-3B-math8k-AM-400steps-dapo-5epochs-8rollouts-16384max-len/global_step_80/actor"
+  #   nick_name: "Qwen2.5-3B-math8k-AM-sft-400-step80"
+
+  # - model_name: "/mnt/home/al2644/research/projects/rlvr/outputs/math8k/Qwen2.5-3B-math8k-AM-400steps-dapo-5epochs-8rollouts-16384max-len/global_step_100/actor"
+  #   nick_name: "Qwen2.5-3B-math8k-AM-sft-400-step100"
+
+  # - model_name: "/mnt/home/al2644/research/projects/rlvr/outputs/math8k/Qwen2.5-3B-math8k-AM-400steps-dapo-5epochs-8rollouts-16384max-len/global_step_120/actor"
+  #   nick_name: "Qwen2.5-3B-math8k-AM-sft-400-step120"
+
+  # - model_name: "/mnt/home/al2644/research/projects/rlvr/outputs/math8k/Qwen2.5-3B-math8k-AM-400steps-dapo-5epochs-8rollouts-16384max-len/global_step_140/actor"
+  #   nick_name: "Qwen2.5-3B-math8k-AM-sft-400-step140"
+
+  # - model_name: "/mnt/home/al2644/research/projects/rlvr/outputs/math8k/Qwen2.5-3B-math8k-AM-400steps-dapo-5epochs-8rollouts-16384max-len/global_step_160/actor"
+  #   nick_name: "Qwen2.5-3B-math8k-AM-sft-400-step160"
+
+  # - model_name: "/mnt/home/al2644/research/projects/rlvr/outputs/math8k/Qwen2.5-3B-math8k-AM-400steps-dapo-5epochs-8rollouts-16384max-len/global_step_200/actor"
+  #   nick_name: "Qwen2.5-3B-math8k-AM-sft-400-step200"
+
+  # - model_name: "/mnt/home/al2644/research/projects/rlvr/outputs/math8k/Qwen2.5-3B-math8k-AM-400steps-dapo-5epochs-8rollouts-16384max-len/global_step_220/actor"
+  #   nick_name: "Qwen2.5-3B-math8k-AM-sft-400-step220"
+
+  # - model_name: "/mnt/home/al2644/research/projects/rlvr/outputs/math8k/Qwen2.5-3B-math8k-AM-400steps-dapo-5epochs-8rollouts-16384max-len/global_step_240/actor"
+  #   nick_name: "Qwen2.5-3B-math8k-AM-sft-400-step240"
+
+  # - model_name: "/mnt/home/al2644/research/projects/rlvr/outputs/math8k/Qwen2.5-3B-math8k-AM-400steps-dapo-5epochs-8rollouts-16384max-len/global_step_260/actor"
+  #   nick_name: "Qwen2.5-3B-math8k-AM-sft-400-step260"
+
+  # Part 2: LIMO Hypothesis
+  # LIMO models  
+  # - model_name: "aochongoliverli/Qwen2.5-3B-math8k-distill-QwQ-32B-16k-limo600-35epochs-2e-5lr-step40"
+  #   nick_name: "Qwen2.5-3B-math8k-QwQ-limo600-step40"
+  
+  # - model_name: "aochongoliverli/Qwen2.5-3B-math8k-distill-QwQ-32B-16k-limo600-35epochs-2e-5lr-step60"
+  #   nick_name: "Qwen2.5-3B-math8k-QwQ-limo600-step60"
+  
+  # - model_name: "aochongoliverli/Qwen2.5-3B-math8k-distill-QwQ-32B-16k-limo600-35epochs-2e-5lr-step80"
+  #   nick_name: "Qwen2.5-3B-math8k-QwQ-limo600-step80"
+  # - model_name: "aochongoliverli/Qwen2.5-3B-math8k-distill-QwQ-32B-16k-limo600-35epochs-2e-5lr-step80"
+  #   nick_name: "Qwen2.5-3B-math8k-QwQ-limo600-step80"
+  
+  # - model_name: "aochongoliverli/Qwen2.5-3B-math8k-distill-QwQ-32B-16k-limo600-35epochs-2e-5lr-step100"
+  #   nick_name: "Qwen2.5-3B-math8k-QwQ-limo600-step100"
+
+  # - model_name: "aochongoliverli/Qwen2.5-3B-math8k-distill-QwQ-32B-16k-limo600-35epochs-2e-5lr-step120"
+  #   nick_name: "Qwen2.5-3B-math8k-QwQ-limo600-step120"
+  
+  # - model_name: "aochongoliverli/Qwen2.5-3B-math8k-distill-QwQ-32B-16k-limo600-35epochs-2e-5lr-step140"
+  #   nick_name: "Qwen2.5-3B-math8k-QwQ-limo600-step140"
+
+  # - model_name: "aochongoliverli/Qwen2.5-3B-math8k-distill-QwQ-32B-16k-limo600-35epochs-2e-5lr-step160"
+  #   nick_name: "Qwen2.5-3B-math8k-QwQ-limo600-step160"
+
+  # - model_name: "aochongoliverli/Qwen2.5-3B-math8k-distill-QwQ-32B-16k-limo600-35epochs-2e-5lr-step180"
+  #   nick_name: "Qwen2.5-3B-math8k-QwQ-limo600-step180"
+
+  # LIMO + QwQ
+  # - model_name: "/share/goyal/lio/reasoning/model/sft/math8k_old/Qwen2.5-3B-limo-qwq-16k-3epochs-5e-5lr/checkpoint-250"
+  #   nick_name: "Qwen2.5-3B-limo-qwq-step250"
+
+  # - model_name: "aochongoliverli/Qwen2.5-3B-limo-qwq-16k-3epochs-5e-5lr-step350"
+  #   nick_name: "Qwen2.5-3B-limo-qwq-step350"
+
+  # - model_name: "aochongoliverli/Qwen2.5-3B-limo-qwq-16k-3epochs-5e-5lr-step400"
+  #   nick_name: "Qwen2.5-3B-limo-qwq-step400"
+
+  # Part 3: Different Teacher Models
+  # AM-Distill-Qwen-32B Teacher
+  # - model_name: "/share/goyal/lio/reasoning/model/sft/math8k/Qwen2.5-3B-math8k-distill-AM-Distill-Qwen-32B-16k-5epochs-2e-5lr/checkpoint-100"
+  #   nick_name: "Qwen2.5-3B-math8k-AM-distill-step100"
+
+  # - model_name: "/share/goyal/lio/reasoning/model/sft/math8k/Qwen2.5-3B-math8k-distill-AM-Distill-Qwen-32B-16k-5epochs-2e-5lr/checkpoint-200"
+  #   nick_name: "Qwen2.5-3B-math8k-AM-distill-step200"
+
+  # - model_name: "/share/goyal/lio/reasoning/model/sft/math8k/Qwen2.5-3B-math8k-distill-AM-Distill-Qwen-32B-16k-5epochs-2e-5lr/checkpoint-400"
+  #   nick_name: "Qwen2.5-3B-math8k-AM-distill-step400"
+
+  # - model_name: "/share/goyal/lio/reasoning/model/sft/math8k/Qwen2.5-3B-math8k-distill-AM-Distill-Qwen-32B-16k-5epochs-2e-5lr/checkpoint-500"
+  #   nick_name: "Qwen2.5-3B-math8k-AM-distill-step500"
+
+  # - model_name: "/share/goyal/lio/reasoning/model/sft/math8k/Qwen2.5-3B-math8k-distill-AM-Distill-Qwen-32B-16k-5epochs-2e-5lr/checkpoint-600"
+  #   nick_name: "Qwen2.5-3B-math8k-AM-distill-step600"
+    
+# Qwen3-32B Teacher
+  # - model_name: "/share/goyal/lio/reasoning/model/sft/math8k/Qwen2.5-3B-math8k-distill-Qwen3-32B-16k-5epochs-2e-5lr/checkpoint-100"
+  #   nick_name: "Qwen2.5-3B-math8k-Qwen3-distill-step100"
+
+  # - model_name: "/share/goyal/lio/reasoning/model/sft/math8k/Qwen2.5-3B-math8k-distill-Qwen3-32B-16k-5epochs-2e-5lr/checkpoint-200"
+  #   nick_name: "Qwen2.5-3B-math8k-Qwen3-distill-step200"
+
+  # - model_name: "/share/goyal/lio/reasoning/model/sft/math8k/Qwen2.5-3B-math8k-distill-Qwen3-32B-16k-5epochs-2e-5lr/checkpoint-300"
+  #   nick_name: "Qwen2.5-3B-math8k-Qwen3-distill-step300"
+
+  # - model_name: "/share/goyal/lio/reasoning/model/sft/math8k/Qwen2.5-3B-math8k-distill-Qwen3-32B-16k-5epochs-2e-5lr/checkpoint-400"
+  #   nick_name: "Qwen2.5-3B-math8k-Qwen3-distill-step400"
+
+  # - model_name: "/share/goyal/lio/reasoning/model/sft/math8k/Qwen2.5-3B-math8k-distill-Qwen3-32B-16k-5epochs-2e-5lr/checkpoint-500"
+  #   nick_name: "Qwen2.5-3B-math8k-Qwen3-distill-step500"
+
+  # - model_name: "/share/goyal/lio/reasoning/model/sft/math8k/Qwen2.5-3B-math8k-distill-Qwen3-32B-16k-5epochs-2e-5lr/checkpoint-600"
+  #   nick_name: "Qwen2.5-3B-math8k-Qwen3-distill-step600"
+
+  # QwQ-32B Teacher
+  # - model_name: "/share/goyal/lio/reasoning/model/sft/math8k/Qwen2.5-3B-math8k-distill-QwQ-32B-16k-5epochs-2e-5lr/checkpoint-100"
+  #   nick_name: "Qwen2.5-3B-math8k-QwQ-distill-step100"
+
+  # - model_name: "/share/goyal/lio/reasoning/model/sft/math8k/Qwen2.5-3B-math8k-distill-QwQ-32B-16k-5epochs-2e-5lr/checkpoint-200"
+  #   nick_name: "Qwen2.5-3B-math8k-QwQ-distill-step200"
+
+  # - model_name: "/share/goyal/lio/reasoning/model/sft/math8k/Qwen2.5-3B-math8k-distill-QwQ-32B-16k-5epochs-2e-5lr/checkpoint-300"
+  #   nick_name: "Qwen2.5-3B-math8k-QwQ-distill-step300"
+
+  # - model_name: "/share/goyal/lio/reasoning/model/sft/math8k/Qwen2.5-3B-math8k-distill-QwQ-32B-16k-5epochs-2e-5lr/checkpoint-400"
+  #   nick_name: "Qwen2.5-3B-math8k-QwQ-distill-step400"
+
+  # - model_name: "/share/goyal/lio/reasoning/model/sft/math8k/Qwen2.5-3B-math8k-distill-QwQ-32B-16k-5epochs-2e-5lr/checkpoint-500"
+  #   nick_name: "Qwen2.5-3B-math8k-QwQ-distill-step500"
+
+  # - model_name: "/share/goyal/lio/reasoning/model/sft/math8k/Qwen2.5-3B-math8k-distill-QwQ-32B-16k-5epochs-2e-5lr/checkpoint-600"
+  #   nick_name: "Qwen2.5-3B-math8k-QwQ-distill-step600"
+
+
+### Qwen2.5 1.5B Series
+# QwQ-32B Teacher
+  # - model_name: "aochongoliverli/Qwen2.5-1.5B-math8k-distill-QwQ-32B-16k-5epochs-2e-5lr-step100"
+  #   nick_name: "Qwen2.5-1.5B-QwQ-distill-step100"
+
+  # - model_name: "aochongoliverli/Qwen2.5-1.5B-math8k-distill-QwQ-32B-16k-5epochs-2e-5lr-step200"
+  #   nick_name: "Qwen2.5-1.5B-QwQ-distill-step200"
+
+  # - model_name: "aochongoliverli/Qwen2.5-1.5B-math8k-distill-QwQ-32B-16k-5epochs-2e-5lr-step300"
+  #   nick_name: "Qwen2.5-1.5B-QwQ-distill-step300"
+
+  # - model_name: "aochongoliverli/Qwen2.5-1.5B-math8k-distill-QwQ-32B-16k-5epochs-2e-5lr-step400"
+  #   nick_name: "Qwen2.5-1.5B-QwQ-distill-step400"
+
+  # - model_name: "aochongoliverli/Qwen2.5-1.5B-math8k-distill-QwQ-32B-16k-5epochs-2e-5lr-step500"
+  #   nick_name: "Qwen2.5-1.5B-QwQ-distill-step500"
+
+# Qwen3-32B Teacher (5e-5lr is used given Qwen3 converges slower)
+  # - model_name: "aochongoliverli/Qwen2.5-1.5B-math8k-distill-Qwen3-32B-16k-5epochs-5e-5lr-step100"
+  #   nick_name: "Qwen2.5-1.5B-Qwen3-distill-step100"
+
+  # - model_name: "aochongoliverli/Qwen2.5-1.5B-math8k-distill-Qwen3-32B-16k-5epochs-5e-5lr-step200"
+  #   nick_name: "Qwen2.5-1.5B-Qwen3-distill-step200"
+
+  # - model_name: "aochongoliverli/Qwen2.5-1.5B-math8k-distill-Qwen3-32B-16k-5epochs-5e-5lr-step300"
+  #   nick_name: "Qwen2.5-1.5B-Qwen3-distill-step300"
+
+  # - model_name: "aochongoliverli/Qwen2.5-1.5B-math8k-distill-Qwen3-32B-16k-5epochs-5e-5lr-step400"
+  #   nick_name: "Qwen2.5-1.5B-Qwen3-distill-step400"
+
+  # - model_name: "aochongoliverli/Qwen2.5-1.5B-math8k-distill-Qwen3-32B-16k-5epochs-5e-5lr-step500"
+  #   nick_name: "Qwen2.5-1.5B-Qwen3-distill-step500"
+
+# AM-Distill-Qwen-32B Teacher
+  # - model_name: "aochongoliverli/Qwen2.5-1.5B-math8k-distill-AM-Distill-Qwen-32B-16k-5epochs-2e-5lr-step100"
+  #   nick_name: "Qwen2.5-1.5B-AM-distill-step100"
+
+  # - model_name: "aochongoliverli/Qwen2.5-1.5B-math8k-distill-AM-Distill-Qwen-32B-16k-5epochs-2e-5lr-step200"
+  #   nick_name: "Qwen2.5-1.5B-AM-distill-step200"
+
+  # - model_name: "aochongoliverli/Qwen2.5-1.5B-math8k-distill-AM-Distill-Qwen-32B-16k-5epochs-2e-5lr-step300"
+  #   nick_name: "Qwen2.5-1.5B-AM-distill-step300"
+
+  # - model_name: "aochongoliverli/Qwen2.5-1.5B-math8k-distill-AM-Distill-Qwen-32B-16k-5epochs-2e-5lr-step400"
+  #   nick_name: "Qwen2.5-1.5B-AM-distill-step400"
+    
+  # - model_name: "aochongoliverli/Qwen2.5-1.5B-math8k-distill-AM-Distill-Qwen-32B-16k-5epochs-2e-5lr-step500"
+  #   nick_name: "Qwen2.5-1.5B-AM-distill-step500"
+
+### Qwen2.5 7B Series
+# QwQ-32B Teacher
+  # - model_name: "/mnt/home/al2644/research/projects/rlvr/sft/LLaMA-Factory/outputs/math8k/Qwen2.5-7B-math8k-distill-QwQ-32B-16k-10epochs-5e-5lr/checkpoint-100"
+  #   nick_name: "Qwen2.5-7B-QwQ-distill-step100"
+
+  # - model_name: "/mnt/home/al2644/research/projects/rlvr/sft/LLaMA-Factory/outputs/math8k/Qwen2.5-7B-math8k-distill-QwQ-32B-16k-10epochs-5e-5lr/checkpoint-200"
+  #   nick_name: "Qwen2.5-7B-QwQ-distill-step200"
+
+  # - model_name: "/mnt/home/al2644/research/projects/rlvr/sft/LLaMA-Factory/outputs/math8k/Qwen2.5-7B-math8k-distill-QwQ-32B-16k-10epochs-5e-5lr/checkpoint-300"
+  #   nick_name: "Qwen2.5-7B-QwQ-distill-step300"
+
+  # - model_name: "/mnt/home/al2644/research/projects/rlvr/sft/LLaMA-Factory/outputs/math8k/Qwen2.5-7B-math8k-distill-QwQ-32B-16k-10epochs-5e-5lr/checkpoint-400"
+  #   nick_name: "Qwen2.5-7B-QwQ-distill-step400"
+
+  # - model_name: "/mnt/home/al2644/research/projects/rlvr/sft/LLaMA-Factory/outputs/math8k/Qwen2.5-7B-math8k-distill-QwQ-32B-16k-10epochs-5e-5lr/checkpoint-500"
+  #   nick_name: "Qwen2.5-7B-QwQ-distill-step500"
+
+# Qwen3-32B Teacher
+  # - model_name: "/mnt/home/al2644/research/projects/rlvr/sft/LLaMA-Factory/outputs/math8k/Qwen2.5-7B-math8k-distill-Qwen3-32B-16k-10epochs-5e-5lr/checkpoint-100"
+  #   nick_name: "Qwen2.5-7B-Qwen3-distill-step100"
+
+  # - model_name: "/mnt/home/al2644/research/projects/rlvr/sft/LLaMA-Factory/outputs/math8k/Qwen2.5-7B-math8k-distill-Qwen3-32B-16k-10epochs-5e-5lr/checkpoint-200"
+  #   nick_name: "Qwen2.5-7B-Qwen3-distill-step200"
+
+  # - model_name: "/mnt/home/al2644/research/projects/rlvr/sft/LLaMA-Factory/outputs/math8k/Qwen2.5-7B-math8k-distill-Qwen3-32B-16k-10epochs-5e-5lr/checkpoint-300"
+  #   nick_name: "Qwen2.5-7B-Qwen3-distill-step300"
+
+  # - model_name: "/mnt/home/al2644/research/projects/rlvr/sft/LLaMA-Factory/outputs/math8k/Qwen2.5-7B-math8k-distill-Qwen3-32B-16k-10epochs-5e-5lr/checkpoint-400"
+  #   nick_name: "Qwen2.5-7B-Qwen3-distill-step400"
+
+  # - model_name: "/mnt/home/al2644/research/projects/rlvr/sft/LLaMA-Factory/outputs/math8k/Qwen2.5-7B-math8k-distill-Qwen3-32B-16k-10epochs-5e-5lr/checkpoint-500"
+  #   nick_name: "Qwen2.5-7B-Qwen3-distill-step500"
+
+  # - model_name: "/mnt/home/al2644/research/projects/rlvr/sft/LLaMA-Factory/outputs/math8k/Qwen2.5-7B-math8k-distill-Qwen3-32B-16k-10epochs-5e-5lr/checkpoint-600"
+  #   nick_name: "Qwen2.5-7B-Qwen3-distill-step600"
+
+# AM-Distill-Qwen-32B Teacher
+  # - model_name: "/mnt/home/al2644/research/projects/rlvr/sft/LLaMA-Factory/outputs/math8k/Qwen2.5-7B-math8k-distill-AM-Distill-Qwen-32B-16k-10epochs-5e-5lr/checkpoint-100"
+  #   nick_name: "Qwen2.5-7B-AM-distill-step100"
+
+  # - model_name: "/mnt/home/al2644/research/projects/rlvr/sft/LLaMA-Factory/outputs/math8k/Qwen2.5-7B-math8k-distill-AM-Distill-Qwen-32B-16k-10epochs-5e-5lr/checkpoint-200"
+  #   nick_name: "Qwen2.5-7B-AM-distill-step200"
+
+  # - model_name: "/mnt/home/al2644/research/projects/rlvr/sft/LLaMA-Factory/outputs/math8k/Qwen2.5-7B-math8k-distill-AM-Distill-Qwen-32B-16k-10epochs-5e-5lr/checkpoint-300"
+  #   nick_name: "Qwen2.5-7B-AM-distill-step300"
+
+  # - model_name: "/mnt/home/al2644/research/projects/rlvr/sft/LLaMA-Factory/outputs/math8k/Qwen2.5-7B-math8k-distill-AM-Distill-Qwen-32B-16k-10epochs-5e-5lr/checkpoint-400"
+  #   nick_name: "Qwen2.5-7B-AM-distill-step400"
+
+  # - model_name: "/mnt/home/al2644/research/projects/rlvr/sft/LLaMA-Factory/outputs/math8k/Qwen2.5-7B-math8k-distill-AM-Distill-Qwen-32B-16k-10epochs-5e-5lr/checkpoint-500"
+  #   nick_name: "Qwen2.5-7B-AM-distill-step500"
+
+
+
+## Llama3 series
+
+# Llama3.2 1B AM SFT
+- model_name: "/mnt/home/al2644/research/projects/rlvr/sft/LLaMA-Factory/outputs/math8k/Llama-3.2-1B-math8k-distill-AM-Distill-Qwen-32B-16k-5epochs-5e-5lr/checkpoint-100"
+  nick_name: "Llama3.2-1B-AM-distill-step100"
+
+- model_name: "/mnt/home/al2644/research/projects/rlvr/sft/LLaMA-Factory/outputs/math8k/Llama-3.2-1B-math8k-distill-AM-Distill-Qwen-32B-16k-5epochs-5e-5lr/checkpoint-200"
+  nick_name: "Llama3.2-1B-AM-distill-step200"
+
+- model_name: "/mnt/home/al2644/research/projects/rlvr/sft/LLaMA-Factory/outputs/math8k/Llama-3.2-1B-math8k-distill-AM-Distill-Qwen-32B-16k-5epochs-5e-5lr/checkpoint-300"
+  nick_name: "Llama3.2-1B-AM-distill-step300"
+
+- model_name: "/mnt/home/al2644/research/projects/rlvr/sft/LLaMA-Factory/outputs/math8k/Llama-3.2-1B-math8k-distill-AM-Distill-Qwen-32B-16k-5epochs-5e-5lr/checkpoint-400"
+  nick_name: "Llama3.2-1B-AM-distill-step400"
+
+- model_name: "/mnt/home/al2644/research/projects/rlvr/sft/LLaMA-Factory/outputs/math8k/Llama-3.2-1B-math8k-distill-AM-Distill-Qwen-32B-16k-5epochs-5e-5lr/checkpoint-500"
+  nick_name: "Llama3.2-1B-AM-distill-step500"
+
+- model_name: "/mnt/home/al2644/research/projects/rlvr/sft/LLaMA-Factory/outputs/math8k/Llama-3.2-1B-math8k-distill-AM-Distill-Qwen-32B-16k-5epochs-5e-5lr/checkpoint-600"
+  nick_name: "Llama3.2-1B-AM-distill-step600"
+
+# Llama3.2 3B AM SFT

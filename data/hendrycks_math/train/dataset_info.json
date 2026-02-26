@@ -1,6 +1,41 @@
 {
+  "builder_name": "parquet",
   "citation": "",
+  "config_name": "default",
+  "dataset_name": "hendrycks_math",
+  "dataset_size": 15701148,
   "description": "",
+  "download_checksums": {
+    "hf://datasets/aochongoliverli/hendrycks_math@12361166572f6c08c799c98eee02fe745edea358/data/Level1-00000-of-00001.parquet": {
+      "num_bytes": 111673,
+      "checksum": null
+    },
+    "hf://datasets/aochongoliverli/hendrycks_math@12361166572f6c08c799c98eee02fe745edea358/data/Level2-00000-of-00001.parquet": {
+      "num_bytes": 348757,
+      "checksum": null
+    },
+    "hf://datasets/aochongoliverli/hendrycks_math@12361166572f6c08c799c98eee02fe745edea358/data/Level3-00000-of-00001.parquet": {
+      "num_bytes": 508575,
+      "checksum": null
+    },
+    "hf://datasets/aochongoliverli/hendrycks_math@12361166572f6c08c799c98eee02fe745edea358/data/Level4-00000-of-00001.parquet": {
+      "num_bytes": 666120,
+      "checksum": null
+    },
+    "hf://datasets/aochongoliverli/hendrycks_math@12361166572f6c08c799c98eee02fe745edea358/data/Level5-00000-of-00001.parquet": {
+      "num_bytes": 1335650,
+      "checksum": null
+    },
+    "hf://datasets/aochongoliverli/hendrycks_math@12361166572f6c08c799c98eee02fe745edea358/data/train-00000-of-00001.parquet": {
+      "num_bytes": 2979317,
+      "checksum": null
+    },
+    "hf://datasets/aochongoliverli/hendrycks_math@12361166572f6c08c799c98eee02fe745edea358/data/test-00000-of-00001.parquet": {
+      "num_bytes": 1850457,
+      "checksum": null
+    }
+  },
+  "download_size": 7800549,
   "features": {
     "problem": {
       "dtype": "string",
@@ -20,5 +55,56 @@
     }
   },
   "homepage": "",
-  "license": ""
+  "license": "",
+  "size_in_bytes": 23501697,
+  "splits": {
+    "Level1": {
+      "name": "Level1",
+      "num_bytes": 226989,
+      "num_examples": 564,
+      "dataset_name": "hendrycks_math"
+    },
+    "Level2": {
+      "name": "Level2",
+      "num_bytes": 697693,
+      "num_examples": 1348,
+      "dataset_name": "hendrycks_math"
+    },
+    "Level3": {
+      "name": "Level3",
+      "num_bytes": 1028099,
+      "num_examples": 1592,
+      "dataset_name": "hendrycks_math"
+    },
+    "Level4": {
+      "name": "Level4",
+      "num_bytes": 1341420,
+      "num_examples": 1690,
+      "dataset_name": "hendrycks_math"
+    },
+    "Level5": {
+      "name": "Level5",
+      "num_bytes": 2689342,
+      "num_examples": 2304,
+      "dataset_name": "hendrycks_math"
+    },
+    "train": {
+      "name": "train",
+      "num_bytes": 5984772,
+      "num_examples": 7500,
+      "dataset_name": "hendrycks_math"
+    },
+    "test": {
+      "name": "test",
+      "num_bytes": 3732833,
+      "num_examples": 5000,
+      "dataset_name": "hendrycks_math"
+    }
+  },
+  "version": {
+    "version_str": "0.0.0",
+    "major": 0,
+    "minor": 0,
+    "patch": 0
+  }
 }
