@@ -24,6 +24,8 @@ This document consolidates all revision suggestions from:
 9. [Writing & LaTeX Fixes (Original Batches)](#9-writing-and-latex-fixes)
 10. [Guardrails: What NOT to Do](#10-guardrails)
 11. [Supporting Research & Citations](#11-supporting-research)
+12. [Review Gap Analysis](#12-review-gap-analysis)
+13. [Post Camera-Ready: Dissemination](#13-post-camera-ready-dissemination)
 
 ---
 
@@ -462,3 +464,48 @@ Imply:     Current training optimizes for the wrong thing when deployment is mul
 - Abstract tone: Cautious ("does not predict...in several cases")
 - Agentic framing: 1 sentence each in intro, §2, related work, conclusion — not overclaimed
 - Conclusion: ~250-300 words, 4 paragraphs
+
+---
+
+## 12. Review Gap Analysis
+
+See [`docs/review-gap-analysis.md`](review-gap-analysis.md) for the full breakdown of reviewer requests vs. current paper state. Summary of outstanding items:
+
+**Critical (promised in rebuttal):**
+1. Methodology section overhaul — plain English, implementation details, design choice justification (Y2jS)
+2. Attention-based mechanistic analysis — Lasso classifiers, Cohen's d, attention heads (zPNH + AC)
+3. Missing citations — Speculative Thinking, ReMa, s1 (Y2jS)
+
+**High priority:**
+4. Likelihood-based probe for guidability (zPNH)
+5. Qualitative guidability examples (BaPD)
+6. Digit-corruption experiment (zPNH)
+
+**Nice-to-have:**
+7. Realism/limitations discussion (AC + BJqx)
+8. Computational costs discussion (BaPD)
+
+---
+
+## 13. Post Camera-Ready: Dissemination
+
+### 13.1 Project Website
+- Interactive visualizations of key results (recoverability/guidability heatmaps, rank-change tables, position analysis curves)
+- Model comparison explorer — let visitors pick models and see head-to-head off-trajectory performance
+- Animated figure showing the twin-test protocol (solo → distracted → guided)
+- Embed paper PDF + link to OpenReview, code, and data
+
+### 13.2 Blog Post (Substack)
+- Long-form narrative version of the paper for general ML audience
+- Lead with the counterintuitive hook: "the best reasoning model is the most fragile"
+- Include interactive/animated versions of key figures
+- End with implications for multi-agent systems and AI safety
+
+### 13.3 Twitter/X Thread
+- Visual thread (8-10 tweets) with key figures and one-liner findings
+- Tweet 1: Hook with AM-Thinking vs Qwen3 contrast
+- Tweet 2-3: What are recoverability and guidability (twin-test figure)
+- Tweet 4-5: Key findings with table screenshots
+- Tweet 6-7: Control study insights (teacher transfer, RL gains)
+- Tweet 8: Link to paper, website, blog post
+- Tag relevant accounts (model authors, benchmark creators)
