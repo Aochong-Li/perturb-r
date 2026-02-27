@@ -364,3 +364,101 @@ Round 1 agents recommend **Version B** for its clarity and hook. Round 2 synthes
 10. Apply Batch 4 structure fixes (#23-28)
 11. Language pass: reframe as "off-trajectory robustness" property (Action #4)
 12. Final LaTeX compile and verification
+
+---
+
+## 12. Structural Skeleton (Synthesized from Step 1 Agents)
+
+*Synthesized from 5 structural skeleton agents (Abstract+Intro Architect, Methods+Eval Architect, Control+Related Architect, Conclusion+Narrative Arc Architect, Devil's Advocate) on 2026-02-27.*
+
+### Title
+**Keep as-is**: "Off-Trajectory Reasoning: Can LLMs Collaborate on Reasoning Trajectories?" — all agents agree.
+
+### Abstract: 8 Sentences, Findings-First
+
+| # | Role | Content |
+|---|------|---------|
+| S1 | Hook | Reasoning LLMs are increasingly deployed where their chain of thought is not theirs alone (tool outputs, collaborator reasoning, model handoff). |
+| S2 | Question | We ask: can solo-trained reasoners handle off-distribution content injected into their reasoning traces? |
+| S3 | Framework | We formalize this as *off-trajectory reasoning* via twin tests: recoverability (resist misleading steers) and guidability (leverage correct guidance). |
+| S4 | Finding 1 | Evaluating 15 models across 9 benchmarks: benchmark performance does not predict off-trajectory robustness — and in several cases, higher-scoring models perform significantly worse. |
+| S5 | Finding 2 | Guidability caps at 9.2% on shared problems; models reject correct guidance 18.6% of the time when the answer is already present. |
+| S6 | Training insight | Control studies reveal: teacher vulnerabilities transfer through distillation even on correct-only data. |
+| S7 | RL insight | RL (GRPO) yields 15–29 pp recoverability gains vs. 5–7 pp benchmark gains. |
+| S8 | Implication | These results have implications for agentic deployment, model cascading, and training pipeline design. |
+
+**Devil's Advocate guardrails:** S4 says "does not predict...in several cases" (not "inversely correlates" — driven by 2 outliers). S8 says "implications for" (not "directly models").
+
+### Introduction: 5 Paragraphs, Reality-First
+
+| P# | Role | What it does |
+|----|------|-------------|
+| P1 | Practical reality | LLMs with thinking abilities are frontier. Deployment increasingly involves off-distribution content in reasoning traces. Keep existing citations. Add 1 sentence on agentic connection as *implication*. |
+| P2 | Sharp question + surprising answer | Can solo-trained models handle this? Twin tests preview. Counterintuitive finding previewed. Collaborative vision compressed to 2 sentences (from full paragraph). |
+| P3 | Framework description | Twin tests: recoverability and guidability. Wrapfigure stays. Largely unchanged. |
+| P4 | Key findings + training insights | Current findings summary tightened. Teacher transfer elevated. |
+| P5 | Contributions | Unchanged numbered list. |
+
+### Section 2: Twin Tests — Minimal Changes
+- Add ~2 sentences reframing tests as measuring *properties* of off-trajectory robustness.
+- Add 1 sentence connecting to agentic deployment (tool outputs as off-trajectory content).
+- Keep everything else.
+
+### Section 3: Findings — Reordered
+
+| Current | Proposed | Rationale |
+|---------|----------|-----------|
+| Finding 1: "Stronger ≠ stronger collaborators" (recov + guid combined) | **Finding 1: The Robustness-Performance Gap** (recoverability ONLY) | Splitting makes each sharper |
+| Finding 2: "Beginning of reasoning is critical" | **Finding 2: The Guidability Wall + "Even Correct Guidance Fails"** (elevated 3b with bold subheading) | Guidability wall more impactful |
+| Finding 3: "LLMs fail to leverage correct guidance" | **Finding 3: The Opening Matters** (position analysis + ablation) | Still interesting but lower impact |
+
+**Guardrail:** Finding 1 language stays "do not positively correlate" / "largely orthogonal."
+
+### Section 4: Control Study — Small Additions
+- Add transition paragraph (2-3 sentences) framing the puzzle.
+- Add closing synthesis paragraph (2-3 sentences) after §4.3.
+- Keep current subsection titles and structure.
+
+### Section 5: Related Work — Small Additions
+- Add von Recum et al. (2026) concurrent citation (1 sentence).
+- Add 1 sentence on agentic AI relevance.
+- Keep two-paragraph structure.
+
+### Section 6: Conclusion — Expanded to 4 Paragraphs (~250-300 words)
+
+| P# | Role |
+|----|------|
+| P1 | Findings summary (twin tests, stronger ≠ better, guidability near-zero, correct guidance fails) |
+| P2 | Training implications (teacher transfer, RL > SFT, "SFT teaches what good reasoning looks like; RL teaches what to do when reasoning goes bad") |
+| P3 | Limitations (math/coding, open-weight, benign distractors) |
+| P4 | Future work + closing (NL reasoning, adversarial, direct training, multi-turn, agentic implication) |
+
+**Guardrails:** Keep ~250-300 words. Limitations paragraph mandatory. Avoid "inverse scaling" language.
+
+### Narrative Arc
+
+```
+Setup:     LLMs reason in isolation, but deployment puts others' content in their traces
+Question:  Do stronger models handle this better?
+Surprise:  No — and no model can leverage correct external guidance
+Explain:   Training methodology is the key: teacher choice, RL vs SFT, data curation
+Imply:     Current training optimizes for the wrong thing when deployment is multi-model
+```
+
+### Change Magnitude Summary
+
+| Section | Magnitude | What changes |
+|---------|-----------|-------------|
+| Abstract | Medium | Reorder sentences, lead with findings not vision |
+| Intro | Medium | Compress vision paragraph, add 1-2 agentic sentences, preview findings earlier |
+| §2 Twin Tests | Small | Add ~3 sentences for property framing + agentic connection |
+| §3 Findings | Medium | Reorder finding paragraphs (no subsection restructuring) |
+| §4 Control | Small | Add transition paragraph + closing synthesis (~5 sentences total) |
+| §5 Related Work | Small | Add 1 citation + 1 sentence |
+| §6 Conclusion | Medium | Expand from 3 sentences to 4 paragraphs |
+
+### Author Decisions (from this session)
+- Findings reorder: Approved
+- Abstract tone: Cautious ("does not predict...in several cases")
+- Agentic framing: 1 sentence each in intro, §2, related work, conclusion — not overclaimed
+- Conclusion: ~250-300 words, 4 paragraphs
