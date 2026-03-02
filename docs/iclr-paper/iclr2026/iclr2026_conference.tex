@@ -48,7 +48,8 @@ Department of Computer Science, Cornell University\\
 \maketitle
 
 \begin{abstract}
-Reasoning LLMs are trained to verbalize their thinking process for complex reasoning tasks. This also opens a promising direction of multiple reasoners collaborating on a shared reasoning trajectory for better inference efficiency, broader exploration, and safer oversight. A key prerequisite, however, is that models can assess and build on other models' thinking traces -- we call this \textit{off-trajectory reasoning}. To understand whether standard \textit{solo-reasoning} training pipelines could naturally yield desired \textit{off-trajectory} behaviors, we design twin tests for two properties at opposite ends of the spectrum: \textbf{Recoverability}, which tests whether LLMs can backtrack from misleading reasoning injected into their trajectory, and \textbf{Guidability}, which tests their ability to build upon correct reasoning from stronger collaborators. By evaluating 15 open-weight LLMs (1.5B--32B) on math and coding benchmarks, we find, counterintuitively, that benchmark performance does not predict off-trajectory behaviors -- and in several cases, higher-scoring models are even more fragile in off-trajectory settings. At the same time, all models tested fail to effectively leverage guiding steps from collaborators on problems beyond their inherent capabilities. Control studies reveal that these weaknesses are directly shaped by training decisions, including the choice of distillation teacher, the use of RL, and SFT data filtering. Our work lays the groundwork for evaluating and improving models' abilities to collaborate on reasoning trajectories.
+% Reasoning LLMs are trained to verbalize their thinking process for complex tasks. This opens a promising direction: multiple reasoners can collaborate on a shared reasoning trajectory to improve inference efficiency, broader exploration, and safety oversight. A key prerequisite, however, is that the LLM should be able to assess and build on other models' thinking traces -- we call this \textit{off-trajectory reasoning}. Our paper investigates a critical question: can standard solo-reasoning training pipelines deliver desired off-trajectory behaviors? We propose twin tests that capture extreme ends of the off-trajectory spectrum: \textbf{Recoverability}, which tests whether LLMs can backtrack from misleading reasoning traces injected into their trajectory, and \textbf{Guidability}, which tests their ability to build upon correct reasoning from stronger collaborators. We evaluate 15 open-weight LLMs (1.5B--32B) on math and coding benchmarks and discover, counterintuitively, that benchmark performance does not predict off-trajectory behaviors. In fact, in several cases, higher-scoring models are more fragile in off-trajectory settings. Moreover, all models tested fail to effectively leverage guiding steps from collaborators on problems beyond their inherent capabilities. Control studies reveal that these weaknesses are directly shaped by training decisions, including the choice of distillation teacher, the use of RL, and SFT data filtering. Our work lays the groundwork for evaluating and improving models' abilities to collaborate on reasoning trajectories.
+Reasoning LLMs are trained to verbalize their thinking process, yielding strong gains on reasoning tasks. This transparency also opens a promising direction: multiple reasoners should directly collaborate on each other's thinking on a shared trajectory, yielding better inference efficiency and exploration. A key prerequisite, however, is their abilities to assess usefulness of and build on other models' partial thinking traces -- we call this \textit{off-trajectory reasoning}. Our paper investigates a critical question: can standard \textit{solo-reasoning} training pipelines yield desired \textit{off-trajectory} behaviors? To this end, we propose twin tests that capture the two extremes of the spectrum: \textbf{Recoverability}, which tests whether LLMs can backtrack from ``distractions'' induced by misleading reasoning traces, and \textbf{Guidability}, which tests their ability to build upon correct reasoning from stronger collaborators. Our study evaluates 15 open-weight LLMs (1.5B--32B) and reveals a counterintuitive finding -- ``stronger'' LLMs on benchmarks are often more fragile under distraction. Moreover, all models tested fail to effectively leverage guiding steps from collaborators on problems beyond their inherent capabilities, with solve rates remaining under 9.2\%. Finally, we conduct control studies to isolate the effects of three factors in post-training on these behaviors: the choice of distillation teacher, the use of RL, and data selection strategy. Our results provide actionable insights for training natively strong reasoning collaborators; e.g., we find that sub-optimal recoverability behaviors of teacher models are transferred to distilled students even if the distilled data trajectories are correct. Taken together, this work introduces the framework for evaluating multi-model collaborations under shared reasoning, while revealing limitations of off-the-shelf reasoning LLMs.
 \end{abstract}
 
 \section{Introduction}
@@ -62,7 +63,7 @@ LLMs with thinking abilities, such as OpenAI's o-series \citep{jaech2024openai},
 
 If models can already interleave their thinking with external content, can multiple reasoners directly collaborate on a shared reasoning trajectory? In this paradigm (Figure~\ref{fig:comparison_solo_collab_reasoning}), a stronger model could correct a weaker one's misstep mid-derivation, or a human overseer could steer reasoning away from an unsafe path. More broadly, this has implications for: (1) \textbf{Efficiency}: to balance performance and inference speed, large LLMs can focus on challenging derivations while offloading routine sub-steps (e.g., arithmetic checking) to smaller models \citep{akhauri2025splitreason, yang2025speculative, chen2023accelerating}. (2) \textbf{Exploration}: models/humans with complementary expertise can broaden the reasoning search by spawning diverse branches~\citep{chen2025parallel, qi2025learning, pan2025learning} and composing their skills to solve cross-domain tasks. (3) \textbf{Safety}: an overseer model or human can intervene to steer ongoing reasoning in a safer direction, rather than abruptly terminating it \citep{wu2025effectively, zhang2025realsafe, korbak2025chain}.
 
-Most LLMs today are trained to reason entirely on their own -- what we term \textit{solo-reasoning}. But both agentic tool use and multi-model collaboration require models to reason over trajectories interleaved with off-distribution tokens from other reasoners or tools. We call this \textit{off-trajectory reasoning} and ask: \textbf{can off-the-shelf solo-reasoning LLMs handle off-distribution content in their reasoning trajectories?}
+Most LLMs today are trained to reason entirely on their own -- what we term \textit{solo-reasoning}. But multi-model collaboration require models to reason over trajectories interleaved with off-distribution tokens from other reasoners. We call this \textit{off-trajectory reasoning} and ask: \textbf{can off-the-shelf solo-reasoning LLMs handle off-distribution thinking tokens in their reasoning trajectories?}
 
 
 \begin{figure*}[t]
@@ -75,7 +76,7 @@ Most LLMs today are trained to reason entirely on their own -- what we term \tex
 
 We approach this question by decomposing off-trajectory reasoning into two complementary tests, \textbf{Recoverability} and \textbf{Guidability}, and evaluating both in simulated collaboration scenarios (see Figure~\ref{fig:twin_tests}). The recoverability test evaluates whether LLMs can backtrack from misleading reasoning injected into their trajectory to continue their original correct reasoning. At the other end of the spectrum, the guidability test evaluates whether LLMs can build upon correct yet incomplete reasoning from guiding models to tackle problems they are unable to solve via solo-reasoning.\footnote{We systematically test for correctness of reasoning in this paper. However, our framework can be extended for other aspects of alignment, e.g., can solo LLMs robustly reject unsafe collaborator trajectories?}
 
-We systematically evaluate 15 open-weight LLMs on a suite of math and coding benchmarks \citep{maa2024aime, maa2025aime, hendrycks2021measuring, lewkowycz2022solving, he-etal-2024-olympiadbench, gu2024cruxeval, chen2021evaluating, austin2021program, liu2023your}. Counterintuitively, we find that benchmark performance does not predict off-trajectory robustness -- and in several cases, higher-scoring models perform significantly worse: for instance, \texttt{AM-Thinking-32B}, the top-scoring model (82.6\% math benchmark average), recovers only 33.4\% of the time, whereas \texttt{Qwen3-1.7B} (59.9\% math average) recovers 98.4\%. Overall, recoverability falls to 74.9\% on problems originally solved with a 100\% solve rate. At the same time, the guidability test reveals a hidden capability ceiling -- no model exceeds 9.2\% on the shared subset -- indicating that LLMs consistently fail to leverage correct reasoning from stronger models to surpass their inherent capability limits. These results show that current benchmark optimization does not account for broader capabilities for collaborative and off-trajectory reasoning.
+We systematically evaluate 15 open-weight LLMs on a suite of math and coding benchmarks \citep{maa2024aime, maa2025aime, hendrycks2021measuring, lewkowycz2022solving, he-etal-2024-olympiadbench, gu2024cruxeval, chen2021evaluating, austin2021program, liu2023your}. Counterintuitively, we find that benchmark performance does not predict off-trajectory robustness -- and in several cases, higher-scoring models perform significantly worse: for instance, \texttt{AM-Thinking-32B}, the top-scoring math model (82.6\% benchmark average on math), recovers only 33.4\% of the time, whereas \texttt{Qwen3-1.7B} (59.9\% math average) recovers in 98.4\% of instances. Overall, recoverability falls to 74.9\% on problems originally solved with a 100\% solve rate. At the same time, the guidability test reveals a hidden capability ceiling -- no model exceeds 9.2\% on the shared subset -- indicating that LLMs consistently fail to leverage correct reasoning from stronger models to surpass their inherent capability limits. These results show that current benchmark optimization does not account for broader capabilities for collaborative and off-trajectory reasoning.
 
 We further investigate how post-training decisions shape off-trajectory behaviors through controlled experiments on three factors: distillation teacher choice, RL training, and data selection strategy. Most strikingly, we find that the recoverability weaknesses of teacher models transfer to distilled students even when training uses only the teacher's correct trajectories. We also show that RL can substantially improve off-trajectory robustness where supervised fine-tuning saturates, and that aggressive data filtering can introduce high variance in recoverability across training checkpoints.
 
@@ -85,7 +86,7 @@ In summary, our work makes the following contributions:
     \item We introduce the \textbf{Recoverability} and \textbf{Guidability} tests as a systematic framework for evaluating off-trajectory reasoning. Our setup complements existing standard solo-reasoning benchmarks by offering an orthogonal view into model reasoning capabilities. (\S \ref{sec:twin_test_desc})
     \item Equipped with this framework, we evaluate 15 open-weight LLMs for off-trajectory reasoning. Our analysis reveals key limitations of ``strong'' solo reasoners and shows that almost all models fail at exploiting correct guidance to improve beyond their inherent capability limits.
     (\S \ref{sec:eval_results})
-    \item We conduct the first controlled study isolating the \textbf{direct effects of post-training decisions} on off-trajectory behaviors. Our experiments reveal that a teacher's recoverability weaknesses transfer to distilled students even through correct-only data, that RL yields substantial recoverability gains where SFT plateaus, and that ``less-is-more'' data filtering introduces high variance in off-trajectory robustness. (\S \ref{sec:control_study})
+    \item We conduct the first controlled study isolating the \textbf{direct effects of post-training decisions} on off-trajectory behaviors. Our experiments reveal that a teacher's recoverability weaknesses transfer to distilled students, that RL yields substantial recoverability gains where SFT plateaus, and that ``less-is-more'' data filtering introduces high variance in off-trajectory robustness. (\S \ref{sec:control_study})
 \end{enumerate}
 
 
@@ -97,7 +98,7 @@ In summary, our work makes the following contributions:
 In contrast, in the collaborative setting, multiple models or different instantiations of the same model contribute different parts to the reasoning trajectory $\mathbf{r}$. Recent work has explored some collaboration strategies, such as dynamically off-loading reasoning sub-parts to weaker/stronger models \citep{yan2025learning, zhou2025expo, akhauri2025splitreason, yang2025speculative}, orchestrating meta-thinking and reasoning agents \citep{wan2025rema}, tooling \citep{jin2025search}, injecting control tokens to extend reasoning \citep{muennighoff2025s1}, or aggregating parallel samples \citep{zhao2025majority, qi2025learning} during both training and inference time.
 
 
-The success of such collaboration hinges on the main model $M$'s ability to process and build upon a trajectory mixing both in- and off-distribution reasoning units $\mathbf{r} = [r^{M}, \ldots, r^{M'}, r^{M''},\ldots, r^{M}]$. In this paper, we instantiate a simplified setup of two-model collaboration to probe off-trajectory reasoning capabilities in frontier open-weight LLMs.
+The success of such collaboration hinges on the main model $M$'s ability to process and build upon a trajectory mixing both in- and off-distribution reasoning units $\mathbf{r} = [r^{M}, r^{M'}, r^{M''},\ldots ]$. In this paper, we instantiate a simplified setup of two-model collaboration to probe off-trajectory reasoning capabilities in frontier open-weight LLMs.
 
 \textbf{Two-model Setup.} We simulate a collaboration between two reasoning systems, where the main model $M$ and the collaborator $M_\mathrm{steer}$ jointly contribute to an off-trajectory reasoning $[r^\mathrm{og}, r^\mathrm{steer}]$. In practice, we construct $r^\mathrm{og}$ by sampling from the main model $M$ and stopping generation at $m$ tokens, i.e. $|r^\mathrm{og}| = m$. Similarly, $r^\mathrm{steer}$ is sampled from the collaborator with $|r^\mathrm{steer}| $ limited to $ n$ tokens. To measure off-trajectory reasoning performance, we concatenate these two incomplete trajectories to construct a shared off-distribution trajectory. Finally, we sample a reasoning completion and final answer from $M$ conditioned on the original question and this trajectory.
 \begin{equation*}
@@ -105,15 +106,15 @@ The success of such collaboration hinges on the main model $M$'s ability to proc
 \end{equation*} 
 For domains with verifiable rewards, we measure success as the accuracy of the final answer $a^\mathrm{off}$ against the ground truth $a^*$.
 
-\textbf{Considerations for designing the steer.} This simplified setup enables us to flexibly and scalably test how $M$ behaves when $r^\mathrm{steer}$ falls at two extremes. We design twin tests: (i) \textbf{Recoverability}, which tests whether LLMs can resist a distracting steer and backtrack to previous reasoning, and (ii) \textbf{Guidability}, which tests models' abilities to successfully leverage a guiding steer to surpass its solo-reasoning ability.
+\textbf{Considerations for designing the steer.} This simplified setup enables us to flexibly and scalably test how $M$ behaves when $r^\mathrm{steer}$ falls at two extremes. We design twin tests: (i) \textbf{Recoverability}, which tests whether LLMs can resist a incorrect and distracting steer, and backtrack to previous reasoning, and (ii) \textbf{Guidability}, which tests models' abilities to successfully leverage a guiding steer to surpass its solo-reasoning ability.
 
-These twin tests differ mainly in two aspects: the selection of test questions $q$ and the construction of steered trajectories $[r^\mathrm{og}, r^\mathrm{steer}]$. Given an original test set and test model $M$, our protocol automatically constructs $M$-specific off-trajectory datasets for both tests, each consisting of $(q, [r^\mathrm{og}, r^\mathrm{steer}], a^*)$. The overall process for this is shown in Figure~\ref{fig:twin_tests} and described below. 
+These twin tests differ mainly in two aspects: (1) \textbf{the selection of test questions}, $\bm{q}$ and (2) \textbf{the construction of steered trajectories} $\bm{[r^\mathrm{og}, r^\mathrm{steer}]}$. Given an original test set and test model $M$, our protocol automatically constructs $M$-specific off-trajectory datasets for both tests, each consisting of $(q, [r^\mathrm{og}, r^\mathrm{steer}], a^*)$. The overall process for this is shown in Figure~\ref{fig:twin_tests} and described below. 
 
 
 \subsection{Recoverability Test}
 \label{sec:recoverability_math}
 
-\textbf{Selecting test datapoints \boldmath$\{(q, a^*)\}$.} For a given test model $M$, we select the subset of test questions that $M$ can correctly answer in solo-reasoning, i.e. $a = a^*$, where $(r, a) \sim M(.|q)$. This isolates the effects of distracting steers from $M$'s inherent capabilities.
+\textbf{Selecting test datapoints \boldmath$\{(q, a^*)\}$.} For a given test model $M$, we select the subset of test questions that $M$ can correctly answer in solo-reasoning, i.e. $a = a^*$, where $(r, a) \sim M(.|q)$. This disentangles the effects of distracting steers from $M$'s inherent capabilities.
 
 
 \textbf{Constructing steered trajectories.} The trajectory consists of two parts: $r^\mathrm{og}$ and $r^\mathrm{steer}$.
@@ -153,98 +154,14 @@ We run our experiments on 15 open-weight models. To illustrate the relationships
     \item \textbf{Community}: \texttt{DeepScaleR-1.5B} \citep{deepscaler2025} and \texttt{DeepMath-1.5B} \citep{he2025deepmath} are trained using RL on \texttt{R1-Qwen-1.5B} using DeepScaleR and DeepMath datasets respectively. \texttt{LIMO-32B} \citep{ye2025limoreasoning} is SFT from \texttt{Qwen2.5-32B-Instruct} on the LIMO dataset of 817 examples. Finally, \texttt{AM-Thinking-32B} \citep{ji2025thinking} is a \texttt{Qwen2.5-32B-Base} model first distilled on 2.84M examples and RL on 54K math and coding questions.
 \end{itemize}
 
-We evaluate on 1,507 math questions from five benchmarks (AIME-2024 \citep{maa2024aime}, AIME-2025 \citep{maa2025aime}, MATH-500 \citep{hendrycks2021measuring}, Minerva Math \citep{lewkowycz2022solving}, and OlympiadBench \citep{he-etal-2024-olympiadbench}) and 1,762 coding questions from four benchmarks (CruxEval \citep{gu2024cruxeval}, HumanEval \citep{chen2021evaluating}, MBPP \citep{austin2021program}, and EvalPlus \citep{liu2023your}).
+We evaluate on $1,507$ math questions from five benchmarks: AIME-2024 \citep{maa2024aime}, AIME-2025 \citep{maa2025aime}, MATH-500 \citep{hendrycks2021measuring}, Minerva Math \citep{lewkowycz2022solving}, and OlympiadBench \citep{he-etal-2024-olympiadbench}. For code, we evaluate on $1,762$ questions from four benchmarks: CruxEval \citep{gu2024cruxeval}, HumanEval \citep{chen2021evaluating}, MBPP \citep{austin2021program}, and EvalPlus \citep{liu2023your}.
 
 \textbf{Hyperparameter Settings.} All LLMs are evaluated under the same hyperparameter settings: a maximum of 32K tokens, temperature 0.6, top-$p$ 0.95, and no system prompt. For each question, we sample 8 completions and report the average Pass@1.
 
-\textbf{Recoverability and guidability Setup.} Following the protocols in \S \ref{sec:recoverability_math}, we sample 200 original trajectories $r^\mathrm{og}$ and 50 trajectories as distracting steers ($r^\mathrm{steer}$) for each LLM. By default, we set $n$, i.e., $|r^\mathrm{steer}|$, to be 0.2 times the original length of the distracting trajectory; this leaves sufficient tokens for \textit{off-trajectory} completion. We set $m$, i.e., $|r^\mathrm{og}|$, to be 0, 0.2, 0.4, 0.6, and 0.8 times the length of the original reasoning from the main model. We report recoverability on two subsets: (1) \textit{shared} subset that includes questions that all 15 LLMs can fully solve (8 out of 8), and (2) \textit{individual} subset that samples questions independently for each LLM following the criterion defined in \S~\ref{sec:twin_test_desc}.
+\textbf{Recoverability and guidability Setup.} Following the protocols in \S\ref{sec:recoverability_math}, we sample 200 original trajectories $r^\mathrm{og}$ and 50 trajectories as distracting steers ($r^\mathrm{steer}$) for each LLM. By default, we set $n$, i.e., $|r^\mathrm{steer}|$, to be 0.2 times the original length of the distracting trajectory; this leaves sufficient tokens for \textit{off-trajectory} completion. We set $m$, i.e., $|r^\mathrm{og}|$, to be 0, 0.2, 0.4, 0.6, and 0.8 times the length of the original reasoning from the main model. We report recoverability on two subsets: (1) \textit{shared} subset that includes questions that all 15 LLMs can fully solve (8 out of 8), and (2) \textit{individual} subset that samples questions independently for each LLM following the criterion defined in \S\ref{sec:recoverability_math}.
 
 We instantiate the guidability tests using \texttt{DeepSeek-R1}, \texttt{Qwen3-235B}, and \texttt{QwQ-32B} as $M_\mathrm{steer}$ to sample \textit{guiding} steers $r^\mathrm{steer}$. Since the best 5 LLMs almost saturate the benchmarks, we only evaluate on the remaining 10 LLMs that have enough questions with solve rate $\leq$ 1/8 (Table \ref{tab:guidability_support_statistics}). We set $n$, i.e., $|r^\mathrm{steer}|$, to be 0.2, 0.4, 0.6, and 0.8 times the total tokens in the guide's reasoning. Similar to the recoverability test, we report guidability scores on two subsets: \textit{shared} (intersection across models) and \textit{individual} (per model).
 
-
-\begin{table}[t]
-  \centering
-  \small
-    \begin{tabular}{r|c|c|cc|cc}
-    \toprule
-    \textbf{Model} &
-    \textbf{Family} &
-    \multicolumn{1}{c|}{\textbf{Benchmark}} & 
-    \multicolumn{2}{c|}{\textbf{Recoverability}} &
-    \multicolumn{2}{c}{\textbf{Guidability}} \\
-    &  & \multicolumn{1}{c|}{\textbf{Avg.}} &
-    \textbf{Sh.} & \textbf{Ind.} & \textbf{Sh.} & \textbf{Ind.} \\
-    \midrule
-    \multicolumn{7}{l}{\textit{Low Benchmark Scores}} \\
-    \midrule
-    
-    R1-Qwen-1.5B    & DS-R1 &  47.5 & \cellcolor{green!12}60.6\textsubscript{$\uparrow$+2} & \cellcolor{green!12}38.6\textsubscript{$\uparrow$+2} & 
-    \cellcolor{green!0}3.0\textsubscript{$\uparrow$+0} & 
-    \cellcolor{green!15}28.4\textsubscript{$\uparrow$+5} \\
-    
-    DeepScaleR-1.5B         & Comm. & 53.3 & \cellcolor{green!27}82.4\textsubscript{$\uparrow$+7} & \cellcolor{green!15}52.9\textsubscript{$\uparrow$+5} & 
-    \cellcolor{green!11}4.1\textsubscript{$\uparrow$+1} & 
-    \cellcolor{green!15}29.8\textsubscript{$\uparrow$+5} \\
-    
-    R1-Llama-8B     & DS-R1 & 54.1 & 
-    \cellcolor{green!15}81.4\textsubscript{$\uparrow$+5} & \cellcolor{green!13}49.6\textsubscript{$\uparrow$+3} & 
-    \cellcolor{green!14}8.7\textsubscript{$\uparrow$+4} &
-    \cellcolor{green!27}35.0\textsubscript{$\uparrow$+7} \\
-    
-    DeepMath-1.5B           & Comm. & 54.8 & \cellcolor{green!29}88.0\textsubscript{$\uparrow$+9} & \cellcolor{green!16}61.8\textsubscript{$\uparrow$+6} & 
-    \cellcolor{red!12} 3.4 \textsubscript{$\downarrow$-2} & 
-    \cellcolor{green!11} 27.1 \textsubscript{$\uparrow$+1} \\
-    
-    OpenThinker3-1.5B       & QwQ & 59.2 & \cellcolor{green!29}95.2\textsubscript{$\uparrow$+9} & \cellcolor{green!28}71.8\textsubscript{$\uparrow$+8} & 
-    \cellcolor{red!11} 5.7 \textsubscript{$\downarrow$-1}& 
-    \cellcolor{green!14} 32.7 \textsubscript{$\uparrow$+4} \\
-    
-    Qwen3-1.7B              & Qwen3 & 59.9 &
-    \cellcolor{green!29}98.4 \textsubscript{$\uparrow$+9} & 
-    \cellcolor{green!29}74.6 \textsubscript{$\uparrow$+9} & 
-    \cellcolor{green!0} 6.1  \textsubscript{$\uparrow$+0}& 
-    \cellcolor{green!12} 29.9 \textsubscript{$\uparrow$+2}\\
-    \midrule
-    \multicolumn{7}{l}{\textit{Medium Benchmark Scores}} \\
-    \midrule
-    
-    R1-Qwen-7B      & DS-R1 & 64.6 &
-    \cellcolor{red!11}73.5\textsubscript{$\downarrow$-1} & 
-    \cellcolor{red!12}45.8\textsubscript{$\downarrow$-2} & 
-    \cellcolor{red!12} 6.0 \textsubscript{$\downarrow$-2}& 
-    \cellcolor{red!16} 19.7 \textsubscript{$\downarrow$-6} \\
-    
-    LIMO-32B                &  Comm. & 67.3 & \cellcolor{red!27}29.3\textsubscript{$\downarrow$-7} & \cellcolor{red!27}18.5\textsubscript{$\downarrow$-7} & 
-    \cellcolor{green!0} 8.8 \textsubscript{$\uparrow$+0} & 
-    \cellcolor{red!15} 21.5 \textsubscript{$\downarrow$-5} \\
-    
-    OpenThinker3-7B         & QwQ & 72.1 & \cellcolor{green!11}85.6\textsubscript{$\uparrow$1} & 
-    \cellcolor{green!15}74.5\textsubscript{$\uparrow$5} &
-    \cellcolor{green!0} 9.1 \textsubscript{$\uparrow$+0} &
-    \cellcolor{red!27} 20.6 \textsubscript{$\downarrow$-7} \\
-    
-    R1-Qwen-32B     & DS-R1 & 72.3 & \cellcolor{red!16}69.8\textsubscript{$\downarrow$-6} & \cellcolor{red!16}45.6\textsubscript{$\downarrow$-6} & 
-    \cellcolor{green!0} 9.2 \textsubscript{$\uparrow$+0} &
-    \cellcolor{red!16} 22.5 \textsubscript{$\downarrow$-6} \\
-    
-    \midrule
-    \multicolumn{7}{l}{\textit{High Benchmark Scores}} \\
-    \midrule
-    
-    Qwen3-8B                & Qwen3 & 79.1 & \cellcolor{green!0}85.9\textsubscript{$\uparrow$+0} & \cellcolor{green!11}68.8\textsubscript{$\uparrow$+1} & N/A & N/A \\
-    
-    QwQ-32B                 & QwQ & 80.5 & \cellcolor{red!15}79.7\textsubscript{$\downarrow$-5} & \cellcolor{red!11}62.6\textsubscript{$\downarrow$-1} & N/A & N/A \\
-    
-    Qwen3-32B               & Qwen3 & 81.0 & \cellcolor{red!28}71.8\textsubscript{$\downarrow$-8} & \cellcolor{red!15}56.9\textsubscript{$\downarrow$-5} & N/A & N/A \\
-    
-    Qwen3-30B-A3B           & Qwen3 & 81.1 & \cellcolor{red!12}87.8\textsubscript{$\downarrow$-2} & \cellcolor{red!15}60.0\textsubscript{$\downarrow$-5} & N/A & N/A \\
-    
-    AM-Thinking-32B      & Comm. & 82.6 & \cellcolor{red!33}33.4\textsubscript{$\downarrow$-13} & \cellcolor{red!33}25.3\textsubscript{$\downarrow$-13} & N/A & N/A \\
-    \bottomrule
-  \end{tabular}
-  \caption{\textbf{Math Results for 15 LLMs from four families.} Columns report benchmark averages and recoverability/guidability scores for \emph{shared} (Sh.) and \emph{individual} (Ind.) subsets. Models are grouped into low/medium/high tiers by \textit{Benchmark Avg}. Subscripts indicate rank changes relative to the benchmark ranking ($+k$ rise, $-k$ drop); green ($\uparrow$) denotes improvement, red ($\downarrow$) decline. ``DS-R1'' = DeepSeek-R1 family, ``Comm.'' = Community models. N/A = not evaluated. Our results show that benchmark performance is largely orthogonal to recoverability. In fact, the best benchmark model AM-Thinking-32B exhibits the second worst recoverability performance.}
-  \label{tab:combined_math_results}
-\end{table}
 
 \begin{table}[t]
   \centering
@@ -253,15 +170,85 @@ We instantiate the guidability tests using \texttt{DeepSeek-R1}, \texttt{Qwen3-2
     \toprule
     \textbf{Model} &
     \textbf{Family} &
-    \multicolumn{1}{c|}{\textbf{Benchmark}} & 
+    \multicolumn{1}{c|}{\textbf{Benchmark}} &
     \multicolumn{2}{c|}{\textbf{Recoverability}} &
     \multicolumn{2}{c}{\textbf{Guidability}} \\
     &  & \multicolumn{1}{c|}{\textbf{Avg.}} &
     \textbf{Sh.} & \textbf{Ind.} & \textbf{Sh.} & \textbf{Ind.} \\
     \midrule
+    \multicolumn{7}{c}{\textbf{(a) Math}} \\
+    \midrule
     \multicolumn{7}{l}{\textit{Low Benchmark Scores}} \\
     \midrule
-    
+
+    R1-Qwen-1.5B    & DS-R1 &  47.5 & \cellcolor{green!12}60.6\textsubscript{$\uparrow$+2} & \cellcolor{green!12}38.6\textsubscript{$\uparrow$+2} &
+    \cellcolor{green!0}3.0\textsubscript{$\uparrow$+0} &
+    \cellcolor{green!15}28.4\textsubscript{$\uparrow$+5} \\
+
+    DeepScaleR-1.5B         & Comm. & 53.3 & \cellcolor{green!27}82.4\textsubscript{$\uparrow$+7} & \cellcolor{green!15}52.9\textsubscript{$\uparrow$+5} &
+    \cellcolor{green!11}4.1\textsubscript{$\uparrow$+1} &
+    \cellcolor{green!15}29.8\textsubscript{$\uparrow$+5} \\
+
+    R1-Llama-8B     & DS-R1 & 54.1 &
+    \cellcolor{green!15}81.4\textsubscript{$\uparrow$+5} & \cellcolor{green!13}49.6\textsubscript{$\uparrow$+3} &
+    \cellcolor{green!14}8.7\textsubscript{$\uparrow$+4} &
+    \cellcolor{green!27}35.0\textsubscript{$\uparrow$+7} \\
+
+    DeepMath-1.5B           & Comm. & 54.8 & \cellcolor{green!29}88.0\textsubscript{$\uparrow$+9} & \cellcolor{green!16}61.8\textsubscript{$\uparrow$+6} &
+    \cellcolor{red!12} 3.4 \textsubscript{$\downarrow$-2} &
+    \cellcolor{green!11} 27.1 \textsubscript{$\uparrow$+1} \\
+
+    OpenThinker3-1.5B       & QwQ & 59.2 & \cellcolor{green!29}95.2\textsubscript{$\uparrow$+9} & \cellcolor{green!28}71.8\textsubscript{$\uparrow$+8} &
+    \cellcolor{red!11} 5.7 \textsubscript{$\downarrow$-1}&
+    \cellcolor{green!14} 32.7 \textsubscript{$\uparrow$+4} \\
+
+    Qwen3-1.7B              & Qwen3 & 59.9 &
+    \cellcolor{green!29}98.4 \textsubscript{$\uparrow$+9} &
+    \cellcolor{green!29}74.6 \textsubscript{$\uparrow$+9} &
+    \cellcolor{green!0} 6.1  \textsubscript{$\uparrow$+0}&
+    \cellcolor{green!12} 29.9 \textsubscript{$\uparrow$+2}\\
+    \midrule
+    \multicolumn{7}{l}{\textit{Medium Benchmark Scores}} \\
+    \midrule
+
+    R1-Qwen-7B      & DS-R1 & 64.6 &
+    \cellcolor{red!11}73.5\textsubscript{$\downarrow$-1} &
+    \cellcolor{red!12}45.8\textsubscript{$\downarrow$-2} &
+    \cellcolor{red!12} 6.0 \textsubscript{$\downarrow$-2}&
+    \cellcolor{red!16} 19.7 \textsubscript{$\downarrow$-6} \\
+
+    LIMO-32B                &  Comm. & 67.3 & \cellcolor{red!27}29.3\textsubscript{$\downarrow$-7} & \cellcolor{red!27}18.5\textsubscript{$\downarrow$-7} &
+    \cellcolor{green!0} 8.8 \textsubscript{$\uparrow$+0} &
+    \cellcolor{red!15} 21.5 \textsubscript{$\downarrow$-5} \\
+
+    OpenThinker3-7B         & QwQ & 72.1 & \cellcolor{green!11}85.6\textsubscript{$\uparrow$1} &
+    \cellcolor{green!15}74.5\textsubscript{$\uparrow$5} &
+    \cellcolor{green!0} 9.1 \textsubscript{$\uparrow$+0} &
+    \cellcolor{red!27} 20.6 \textsubscript{$\downarrow$-7} \\
+
+    R1-Qwen-32B     & DS-R1 & 72.3 & \cellcolor{red!16}69.8\textsubscript{$\downarrow$-6} & \cellcolor{red!16}45.6\textsubscript{$\downarrow$-6} &
+    \cellcolor{green!0} 9.2 \textsubscript{$\uparrow$+0} &
+    \cellcolor{red!16} 22.5 \textsubscript{$\downarrow$-6} \\
+
+    \midrule
+    \multicolumn{7}{l}{\textit{High Benchmark Scores}} \\
+    \midrule
+
+    Qwen3-8B                & Qwen3 & 79.1 & \cellcolor{green!0}85.9\textsubscript{$\uparrow$+0} & \cellcolor{green!11}68.8\textsubscript{$\uparrow$+1} & N/A & N/A \\
+
+    QwQ-32B                 & QwQ & 80.5 & \cellcolor{red!15}79.7\textsubscript{$\downarrow$-5} & \cellcolor{red!11}62.6\textsubscript{$\downarrow$-1} & N/A & N/A \\
+
+    Qwen3-32B               & Qwen3 & 81.0 & \cellcolor{red!28}71.8\textsubscript{$\downarrow$-8} & \cellcolor{red!15}56.9\textsubscript{$\downarrow$-5} & N/A & N/A \\
+
+    Qwen3-30B-A3B           & Qwen3 & 81.1 & \cellcolor{red!12}87.8\textsubscript{$\downarrow$-2} & \cellcolor{red!15}60.0\textsubscript{$\downarrow$-5} & N/A & N/A \\
+
+    AM-Thinking-32B      & Comm. & 82.6 & \cellcolor{red!33}33.4\textsubscript{$\downarrow$-13} & \cellcolor{red!33}25.3\textsubscript{$\downarrow$-13} & N/A & N/A \\
+    \midrule\midrule
+    \multicolumn{7}{c}{\textbf{(b) Coding}} \\
+    \midrule
+    \multicolumn{7}{l}{\textit{Low Benchmark Scores}} \\
+    \midrule
+
     R1-Qwen-1.5B      & DS-R1 & 53.3 &
     \cellcolor{green!0}40.6\textsubscript{$\uparrow+0$} &
     \cellcolor{green!0}28.7\textsubscript{$\uparrow+0$} &
@@ -298,7 +285,7 @@ We instantiate the guidability tests using \texttt{DeepSeek-R1}, \texttt{Qwen3-2
 
     R1-Llama-8B       & DS-R1 & 76.0 &
     \cellcolor{green!15}56.1\textsubscript{$\uparrow+1$} &
-    \cellcolor{green!15}46.2\textsubscript{$\uparrow+1$} &
+    \cellcolor{green!20}46.2\textsubscript{$\uparrow+2$} &
     \cellcolor{green!0}47.2\textsubscript{$\uparrow+0$} &
     \cellcolor{green!0}54.4\textsubscript{$\uparrow+0$} \\
 
@@ -346,16 +333,17 @@ We instantiate the guidability tests using \texttt{DeepSeek-R1}, \texttt{Qwen3-2
     \cellcolor{red!40}47.9\textsubscript{$\downarrow-9$} &
     \cellcolor{red!40}44.2\textsubscript{$\downarrow-8$} &
     N/A & N/A \\
-    
+
     \bottomrule
   \end{tabular}
-  \caption{\textbf{Coding Results for 14 LLMs from four families.} Columns report coding benchmark averages and recoverability/guidability scores for \emph{shared} (Sh.) and \emph{individual} (Ind.) subsets. Models are grouped into low/medium/high tiers by \textit{Benchmark Avg}. Subscripts indicate rank changes relative to the benchmark ranking ($+k$ rise, $-k$ drop); green ($\uparrow$) denotes improvement, red ($\downarrow$) decline. N/A = not evaluated. The trends are consistent with the math results in Table~\ref{tab:combined_math_results}: stronger benchmark models tend to exhibit lower recoverability.}
+  \caption{\textbf{Recoverability and guidability results for math (a) and coding (b).} Columns report benchmark averages and recoverability/guidability scores for \emph{shared} (Sh.) and \emph{individual} (Ind.) subsets. Models are grouped into low/medium/high tiers by \textit{Benchmark Avg}. Subscripts indicate rank changes relative to the benchmark ranking ($+k$ rise, $-k$ drop); green ($\uparrow$) denotes improvement, red ($\downarrow$) decline. ``DS-R1'' = DeepSeek-R1 family, ``Comm.'' = Community models. N/A = not evaluated. Across both domains, benchmark performance is largely orthogonal to recoverability---the best benchmark model in each panel exhibits among the worst recoverability.}
+  \label{tab:combined_math_results}
   \label{tab:combined_coding_results}
 \end{table}
 
 \subsection{Results}
 \label{sec:evaluation_findings}
-Our main results are shown in Table~\ref{tab:combined_math_results} for math and Table~\ref{tab:combined_coding_results} for coding. We group models into low, medium, and high tiers based on their solo-reasoning performance (reported in the \textit{Avg. Benchmark} column) and report recoverability and guidability results on both shared and individual subsets. Given the consistent findings across math and coding benchmarks, we focus our analysis on math to accommodate community models trained exclusively on math data (e.g., LIMO-32B, DeepScaleR-1.5B).
+Our main results are shown in Table~\ref{tab:combined_math_results}. We group models into low, medium, and high tiers based on their solo-reasoning performance (reported in the \textit{Avg. Benchmark} column) and report recoverability and guidability results on both shared and individual subsets. %Given the consistent findings across math and coding benchmarks, we focus our analysis on math to accommodate community models trained exclusively on math data (e.g., LIMO-32B, DeepScaleR-1.5B).
     
 
 \captionsetup[figure]{aboveskip=2pt, belowskip=4pt}
@@ -404,11 +392,11 @@ Our main results are shown in Table~\ref{tab:combined_math_results} for math and
   \end{minipage}
 \end{figure*}
 
-\textbf{Finding 1: Stronger solo-reasoners $\ne$ stronger collaborators.} Surprisingly, we find that recoverability is largely orthogonal to LLMs' solo-reasoning performance. Particularly, we highlight models in the \textit{low} benchmark tier such as \texttt{OpenThinker3-1.5B}  and \texttt{Qwen3-1.7B} that exhibit substantially better recoverability than \textit{medium} and \textit{high} tier models like \texttt{QwQ-32B} and \texttt{Qwen3-32B}. Noticeably, the best performing solo-reasoning model \texttt{AM-Thinking-32B} reports the second worst recoverability performance. Similarly, \texttt{LIMO-32B} -- claimed to surpass prior SFT approaches using only 1\% of training data -- only recovers less than 30\% of the time. Across models, the average recoverability on the shared subset is 74.9\%, a 25.1 percentage-point drop from the original 100\% solve rate, when their trajectories are perturbed with tangential distractions. The coding results (Table~\ref{tab:combined_coding_results}) confirm the same pattern: \texttt{OpenThinker3-1.5B} (53.4\% benchmark average) recovers 78.2\% of the time, while \texttt{R1-Qwen-32B} (89.7\%) recovers only 40.7\%. These findings suggest that \textbf{models optimized heavily for popular benchmarks may have hidden vulnerabilities, particularly in off-trajectory reasoning}.
+\textbf{Finding 1: Stronger solo-reasoners $\ne$ stronger collaborators.} Surprisingly, we find that recoverability is largely orthogonal to LLMs' solo-reasoning performance. Particularly, we highlight models in the \textit{low} benchmark tier for math, such as \texttt{OpenThinker3-1.5B}  and \texttt{Qwen3-1.7B}, exhibit substantially better recoverability than \textit{medium} and \textit{high} tier models like \texttt{QwQ-32B} and \texttt{Qwen3-32B}. Noticeably, the best performing solo-reasoning model \texttt{AM-Thinking-32B} reports the second worst recoverability performance. Similarly, \texttt{LIMO-32B} -- claimed to surpass prior SFT approaches using only 1\% of training data -- only recovers less than 30\% of the time. Across models, the average recoverability on the shared subset is 74.9\%, a 25.1 percentage-point drop from the original 100\% solve rate, when their trajectories are perturbed with tangential distractions. These findings suggest that \textbf{models optimized heavily for popular benchmarks may have hidden vulnerabilities, particularly in off-trajectory reasoning}.
 
 \textbf{Finding 2: The invisible guidability wall.} Our results show that all LLMs report exceptionally low guidability scores; none of the models report $\!>\!10\%$ on the shared subset (and at most 35.0\% on the individual subset). All models, regardless of their solo-reasoning capabilities, struggle to effectively build upon guiding trajectories. Crucially, the performance does not improve even when models are paired with their own distillation teacher, i.e., the model whose samples they were trained on (see Table \ref{tab:guidability_teacher_comparison} for full set of results). For example, \texttt{Qwen3-1.7B} shows no guidability gains when guided by \texttt{Qwen3-235B} compared to other models.
 
-\textbf{Even correct guidance fails.} Further investigations reveal that even these low guidability scores are artificially inflated. Since we truncate the guiding steer at different lengths, it is possible that some partial $r_\mathrm{steer}$ already contain the correct answer derivation. In such cases, we expect the guidability test to be trivially easy. In Table \ref{tab:guidability_contains_answer}, we report the percentage of guiding steers that already contain the correct answer (Ans.? column). We find that this is true for ~$18.6$\% of steers on average (see Table \ref{tab:guidability_all} for breakdown by steer length). However, we find that LLMs can often fail to recognize such correct reasoning, reject the given answer and pivot to an incorrect path, resulting in the low guidability scores. The same pattern holds for coding, where steers already containing the correct answer account for the majority of the apparent guidability (Table~\ref{tab:coding_guidability_all}; \S\ref{sec:appendix_coding_guidability}). This suggests that conditioning models on correct but out-of-distribution traces does not enable them to successfully leverage them and surpass their inherent capability limits.
+\textbf{Even correct guidance fails.} Further investigations reveal that even these low guidability scores are artificially inflated. Since we truncate the guiding steer at different lengths, it is possible that some partial $r_\mathrm{steer}$ already contain the correct answer derivation. In such cases, we expect the guidability test to be trivially easy. In Table \ref{tab:guidability_contains_answer}, we report the percentage of guiding steers that already contain the correct answer (Ans.? column). We find that this is true for ~$18.6$\% of steers on average (see Table \ref{tab:guidability_all} for breakdown by steer length). However, we find that LLMs can often fail to recognize such correct reasoning, reject the given answer and pivot to an incorrect path, resulting in the low guidability scores.  This suggests that conditioning models on correct but out-of-distribution traces does not enable them to successfully leverage them and surpass their inherent capability limits.
 
 \textbf{Finding 3: Lose the opening, lose recoverability.} To better understand the recoverability trends in Table~\ref{tab:combined_math_results},
 we visualize the recovery rates separately for different percentages ($\%$) of the original thinking trajectory where the distracting steer is inserted. Figure~\ref{fig:recoverability_position} shows these results.\footnote{The full set of results for both shared and individual metrics are reported in Tables~\ref{tab:recoverability_shared} and~\ref{tab:recoverability_individual} in the Appendix.} Interestingly, we observe a consistent pattern across models -- distraction at the very start (0\%) of the trajectory leads to the largest degradation. In particular, the degradation at 0\% is substantially higher than at 20\% position. This is surprising as models tend to restate the question at the opening stage and rarely include substantive problem solving. Given these results, we hypothesize that re-stating the question at the start is critical for models to anchor later reasoning.
@@ -564,7 +552,7 @@ Student Answer: \{student\_answer\} \\
 To ensure accurate scoring for evaluations in \S \ref{sec:eval_results}, we first validate all responses with \texttt{Math-Verify} \citep{Math-Verify} and double check with \texttt{DeepSeek-V3} as a judge. We prompt DeepSeek-V3 for responses that are labeled as wrong by math-verify. Table \ref{tab:llm_judge_prompt} contains the exact prompt.
 
 \section{Benchmark Results}
-Here, we provide a detailed breakdown of all LLM performance on five math benchmarks and four coding benchmarks. The \textit{Avg.} column is the same as the one in Table \ref{tab:combined_math_results} and Table \ref{tab:combined_coding_results}. 
+Here, we provide a detailed breakdown of all LLM performance on five math benchmarks and four coding benchmarks. The \textit{Avg.} column is the same as the one in Table~\ref{tab:combined_math_results}. 
 \begin{table}[ht!]
   \centering
   \begin{tabular}{l*{6}{c}}
@@ -1008,11 +996,11 @@ R1-Qwen-32B    &  94 & 145 & 162 & 134 & 182 & 162 \\
     \textbf{Model} & \textbf{20\%} & \textbf{40\%} & \textbf{60\%} & \textbf{80\%} & \textbf{Avg} & \textbf{Benchmark Avg.} \\
     \midrule
     R1-Qwen-1.5B       & 19.6\textsubscript{18.0} & 32.8\textsubscript{29.5} & 47.0\textsubscript{45.0} & 60.8\textsubscript{66.0} & 40.1\textsubscript{39.6} & 53.3 \\
-    OpenThinker3-1.5B   & 29.4\textsubscript{10.4} & 43.2\textsubscript{23.0} & 54.9\textsubscript{40.6} & 70.2\textsubscript{66.6} & 49.4\textsubscript{35.1} & 53.4 \\
-    DeepScaleR-1.5B     & 16.9\textsubscript{16.0} & 28.8\textsubscript{27.7} & 42.7\textsubscript{42.2} & 60.7\textsubscript{60.8} & 37.3\textsubscript{36.7} & 58.8 \\
-    DeepMath-1.5B       & 17.4\textsubscript{14.5} & 30.2\textsubscript{27.0} & 42.0\textsubscript{41.9} & 55.3\textsubscript{60.0} & 36.2\textsubscript{35.9} & 59.8 \\
-    Qwen3-1.7B          & 26.9\textsubscript{16.8} & 48.9\textsubscript{34.0} & 67.3\textsubscript{58.4} & 82.6\textsubscript{77.4} & 56.4\textsubscript{46.7} & 74.7 \\
     R1-Llama-8B         & 27.4\textsubscript{17.5} & 46.2\textsubscript{30.7} & 63.4\textsubscript{54.1} & 80.5\textsubscript{75.1} & 54.4\textsubscript{44.3} & 76.0 \\
+    DeepMath-1.5B       & 17.4\textsubscript{14.5} & 30.2\textsubscript{27.0} & 42.0\textsubscript{41.9} & 55.3\textsubscript{60.0} & 36.2\textsubscript{35.9} & 59.8 \\
+    DeepScaleR-1.5B     & 16.9\textsubscript{16.0} & 28.8\textsubscript{27.7} & 42.7\textsubscript{42.2} & 60.7\textsubscript{60.8} & 37.3\textsubscript{36.7} & 58.8 \\
+    OpenThinker3-1.5B   & 29.4\textsubscript{10.4} & 43.2\textsubscript{23.0} & 54.9\textsubscript{40.6} & 70.2\textsubscript{66.6} & 49.4\textsubscript{35.1} & 53.4 \\
+    Qwen3-1.7B          & 26.9\textsubscript{16.8} & 48.9\textsubscript{34.0} & 67.3\textsubscript{58.4} & 82.6\textsubscript{77.4} & 56.4\textsubscript{46.7} & 74.7 \\
     R1-Qwen-7B          & 27.0\textsubscript{18.9} & 47.1\textsubscript{35.7} & 61.8\textsubscript{55.1} & 76.4\textsubscript{75.3} & 53.1\textsubscript{46.2} & 77.7 \\
     \bottomrule
   \end{tabular}
