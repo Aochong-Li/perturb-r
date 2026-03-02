@@ -892,6 +892,10 @@ Section \ref{sec:evaluation_findings} shows that LLMs struggle to leverage parti
 \end{table}
 
 
+\subsection{Coding Guidability}
+\label{sec:appendix_coding_guidability}
+
+Table~\ref{tab:coding_guidability_all} reports the detailed breakdown of coding guidability (individual) results across seven models and four steer proportions. The coding guidability scores are substantially higher than their math counterparts (Table~\ref{tab:guidability_all}). To assess whether models are genuinely continuing reasoning from the steer or simply benefiting from information already present in it, we conduct an answer-forcing test: we append a closing \texttt{</think>} tag immediately after the steer, forcing the model to produce an answer without any additional reasoning. The resulting pass rates are reported as subscripts. At higher steer proportions, the answer-forcing rate meets or exceeds the guidability score for most models, indicating that models cannot genuinely continue reasoning from the steer---and in some cases actively hurt performance by overriding correct information already present. For DeepScaleR-1.5B and DeepMath-1.5B, answer-forcing matches guidability across all ratios.
 
 \section{Guidability Test}
 \label{sec:appendix_guidability_test}
@@ -995,6 +999,26 @@ R1-Qwen-32B    &  94 & 145 & 162 & 134 & 182 & 162 \\
   \end{tabular}
   \caption{\textbf{Guidability (individual)} results (teacher model comparison). Each teacher model averages across \textbf{Guidability (individual)} scores for all proportions, 20\%, 40\%, 60\%, 80\%, in Table \ref{tab:guidability_all}}
   \label{tab:guidability_teacher_comparison}
+\end{table}
+
+\begin{table}[ht!]
+  \centering
+  \begin{tabular}{lccccc|c}
+    \toprule
+    \textbf{Model} & \textbf{20\%} & \textbf{40\%} & \textbf{60\%} & \textbf{80\%} & \textbf{Avg} & \textbf{Benchmark Avg.} \\
+    \midrule
+    R1-Qwen-1.5B       & 29.4\textsubscript{24.9} & 49.9\textsubscript{36.9} & 60.9\textsubscript{51.0} & 70.9\textsubscript{69.8} & 52.8\textsubscript{45.6} & 53.3 \\
+    R1-Llama-8B         & 30.5\textsubscript{24.7} & 54.3\textsubscript{37.3} & 64.9\textsubscript{54.4} & 78.6\textsubscript{75.8} & 57.1\textsubscript{48.0} & 76.0 \\
+    DeepMath-1.5B       & 22.8\textsubscript{19.8} & 35.3\textsubscript{34.4} & 48.0\textsubscript{48.3} & 62.8\textsubscript{64.2} & 42.2\textsubscript{41.7} & 59.8 \\
+    DeepScaleR-1.5B     & 22.2\textsubscript{22.3} & 35.5\textsubscript{36.2} & 48.4\textsubscript{51.7} & 64.5\textsubscript{66.3} & 42.7\textsubscript{44.1} & 58.8 \\
+    OpenThinker3-1.5B   & 35.2\textsubscript{15.0} & 48.4\textsubscript{29.3} & 59.1\textsubscript{46.6} & 71.1\textsubscript{65.5} & 53.4\textsubscript{39.1} & 53.4 \\
+    Qwen3-1.7B          & 29.3\textsubscript{19.2} & 49.1\textsubscript{34.6} & 66.5\textsubscript{56.2} & 81.3\textsubscript{73.3} & 56.6\textsubscript{45.8} & 74.7 \\
+    \midrule
+    R1-Qwen-7B          & 29.9\textsubscript{27.2} & 55.2\textsubscript{40.3} & 60.9\textsubscript{58.2} & 76.7\textsubscript{76.8} & 55.7\textsubscript{50.6} & 77.7 \\
+    \bottomrule
+  \end{tabular}
+  \caption{\textbf{Coding Guidability (individual)} results (on all coding questions with $\text{solve rate} \leq \frac{1}{8}$ \textbf{for each individual model}). 20\%, 40\%, 60\%, 80\% are proportion of teacher reasoning revealed to the student model. The subscript value is the answer-forcing pass rate: the percentage of cases where the model produces the correct answer when forced to skip reasoning after receiving the steer (\S\ref{sec:appendix_coding_guidability}). ``Avg'' averages across proportions. ``Benchmark Avg'' is from Table~\ref{tab:full_benchmark_scores}.}
+  \label{tab:coding_guidability_all}
 \end{table}
 
 \newpage
