@@ -7,30 +7,30 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from core.openai_engine import *
 import re
 
-PROMPT_TEMPLATE = """<instruction>
-You are a professional, unbiased, and detailed examiner who evaluates whether a student's reasoning process explicitly contains the correct answer to a given question.
+# PROMPT_TEMPLATE = """<instruction>
+# You are a professional, unbiased, and detailed examiner who evaluates whether a student's reasoning process explicitly contains the correct answer to a given question.
 
-Focus strictly on:
-    1. Understanding the exact requirement of the question: what value/quantity the question asks for, and why that value answers the question.
-    2. Summarizing the student's reasoning procedures and the intermediate or final conclusions the student has derived.
-    3. Your task is not to solve the problem, but to determine whether the student arrives at the solution at a certain point in the reasoning.
+# Focus strictly on:
+#     1. Understanding the exact requirement of the question: what value/quantity the question asks for, and why that value answers the question.
+#     2. Summarizing the student's reasoning procedures and the intermediate or final conclusions the student has derived.
+#     3. Your task is not to solve the problem, but to determine whether the student arrives at the solution at a certain point in the reasoning.
 
-Note:
-    1. If the student explicitly states the correct final value anywhere in the reasoning, mark it as CORRECT. The student does not need to express confidence or commit to the final answer. If multiple candidate answers are listed and one equals the ground-truth answer, it is CORRECT.
-    2. If the student's reasoning only implies the solution value or on the correct trajectory but has not explicitly stated it, mark it as WRONG.
-    3. Small differences in rounding, equivalent units, or algebraic expressions are permitted as long as they are clearly equivalent to the ground-truth answer.
-</instruction>
-<format>
-Your response must include ONLY the following sections:
-1. Analysis: From start to end of the reasoning, provide a summary of each major stage and what conclusions/results the student has derived. State whether the correct answer is explicitly mentioned. Do not omit steps directly related to the solution. Put the summary between <analysis> and </analysis> tags.
-2. Correctness: Based on the analysis, output CORRECT or WRONG between <judge> and </judge> tags (e.g., <judge>CORRECT</judge> or <judge>WRONG</judge>).
-</format>
+# Note:
+#     1. If the student explicitly states the correct final value anywhere in the reasoning, mark it as CORRECT. The student does not need to express confidence or commit to the final answer. If multiple candidate answers are listed and one equals the ground-truth answer, it is CORRECT.
+#     2. If the student's reasoning only implies the solution value or on the correct trajectory but has not explicitly stated it, mark it as WRONG.
+#     3. Small differences in rounding, equivalent units, or algebraic expressions are permitted as long as they are clearly equivalent to the ground-truth answer.
+# </instruction>
+# <format>
+# Your response must include ONLY the following sections:
+# 1. Analysis: From start to end of the reasoning, provide a summary of each major stage and what conclusions/results the student has derived. State whether the correct answer is explicitly mentioned. Do not omit steps directly related to the solution. Put the summary between <analysis> and </analysis> tags.
+# 2. Correctness: Based on the analysis, output CORRECT or WRONG between <judge> and </judge> tags (e.g., <judge>CORRECT</judge> or <judge>WRONG</judge>).
+# </format>
 
-###Problem: {problem}
+# ###Problem: {problem}
 
-###Ground Truth Answer: {solution}
+# ###Ground Truth Answer: {solution}
 
-###Student Reasoning: {reasoning}"""
+# ###Student Reasoning: {reasoning}"""
 
 EXTRACT_PROMPT_TEMPLATE = '''<instruction>
 You are a professional, unbiased, and detailed exam grader who extracts answers explicitly written by the student within their derivation. You never solve or continue the derivation yourself.
